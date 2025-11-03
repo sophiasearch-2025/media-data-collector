@@ -1,11 +1,16 @@
-import requests                     # Descargar HTML
-import json                         # Parsear info
-from bs4 import BeautifulSoup       # Parsear HTML y extraer datos
-from urllib.parse import urljoin    # Transformar urls de imágenes
+import requests
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 import re
 
 
 def extract(soup: BeautifulSoup, selectors: list[str], default = None) -> str | None:
+    '''
+    Busca texto dentro de elementos específicos mediante múltiples selectores CSS.
+    Retorna el primer texto encontrado o un valor por defecto.
+    '''
+    
     for sel in selectors:
         info = soup.select_one(sel)
         if info:
@@ -16,6 +21,11 @@ def extract(soup: BeautifulSoup, selectors: list[str], default = None) -> str | 
 
 
 def extract_text_only(soup: BeautifulSoup, selectors: list[str], default = None) -> str | None:
+    '''
+    Similar a extract(), pero obtiene solo texto directo, ignorando nodos hijos 
+    (útil para fechas o autores anidados).
+    '''
+
     for sel in selectors:
         info = soup.select_one(sel)
         if info:
@@ -27,6 +37,10 @@ def extract_text_only(soup: BeautifulSoup, selectors: list[str], default = None)
 
 
 def extract_multimedia(soup: BeautifulSoup, selectors: list, default: str = "") -> list[str]:
+    '''
+    Busca imágenes o elementos multimedia dentro de los selectores indicados. 
+    Reconoce atributos como src, data-src y data-lazy-src, e incluso URLs embebidas en style.
+    '''
 
     images = set()
     for sel in selectors:
@@ -50,6 +64,11 @@ def extract_multimedia(soup: BeautifulSoup, selectors: list, default: str = "") 
 
 
 def extract_body(soup: BeautifulSoup, selectors: list, default: str = "") -> str:
+    '''
+    Recorre selectores de contenido para construir el cuerpo completo del artículo. 
+    Devuelve un texto unificado con saltos de línea.
+    '''
+    
     cuerpo = []
     for sel in selectors:
         for parrafo in soup.select(sel):
@@ -63,7 +82,12 @@ def extract_body(soup: BeautifulSoup, selectors: list, default: str = "") -> str
         return "\n".join(cuerpo)
 
 
-def scrap_news_article(url: str, *tags, validate: bool = False) -> dict | None:
+def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dict | None:
+    '''
+    Realiza el scraping completo de una noticia individual. Esta función puede devolver 
+    tanto un diccionario de python como un None, dependiendo de los parámetros y el output.
+    '''
+    
     try:
         # Realizar una request al sitio
         response = requests.get(url, timeout = 10)
@@ -148,12 +172,12 @@ def scrap_news_article(url: str, *tags, validate: bool = False) -> dict | None:
 
 def main():
     test_url = "https://www.biobiochile.cl/noticias/servicios/beneficios/2025/10/23/asi-funciona-el-beneficio-estrudiantil-que-cubre-mas-de-un-millon-de-pesos-del-arancel.shtml"
-    noticia = scrap_news_article(test_url)
+    noticia = scrap_news_article(test_url, [])
     if noticia:
         print(json.dumps(noticia, indent = 3, ensure_ascii = False))
 
 
-# Links ya testeados
+# Links testeados que causaron errores durante el desarrollo
 # 1. "https://www.biobiochile.cl/noticias/nacional/chile/2025/10/12/franco-parisi-creo-que-paso-a-segunda-vuelta-con-jara-no-hay-tanto-voto-de-ultraderecha-en-chile.shtml"
 # 2. "https://www.biobiochile.cl/noticias/ciencia-y-tecnologia/adelantos/2025/10/10/de-madera-tierra-y-techos-verdes-presentan-mat-la-primera-casa-chilena-sustentable-y-transportable.shtml"
 # 3. "https://www.biobiochile.cl/noticias/artes-y-cultura/actualidad-cultural/2025/09/25/11-dias-de-actividades-trae-bienal-de-arquitectura-y-programa-enfocado-en-revitalizacion-de-la-ciudad.shtml"
