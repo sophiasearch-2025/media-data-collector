@@ -1,5 +1,6 @@
 version: '3.8'
 services:
+
   rabbitmq:
     image: rabbitmq:3-management
     hostname: rabbitmq
@@ -13,7 +14,17 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
       - rabbitmq_log:/var/log/rabbitmq
-
+      
+  redis:
+    image: redis:7.2
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: ["redis-server", "--appendonly", "yes"]
 volumes:
   rabbitmq_data:
   rabbitmq_log:
+  redis_data:
