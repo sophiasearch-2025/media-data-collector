@@ -3,6 +3,11 @@ import csv
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
+import time
+import json
+import os
+
+
 
 SITES = {
     "biobiochile": {
@@ -44,6 +49,8 @@ async def scrape_category_loadmore(page, category_url, load_more_selector, news_
 
 # 🕸️ Función principal
 async def crawl_site(site_config):
+    start_time = time.time() #inicio medicion tiempo
+
     start_url = site_config["start_url"]
     category_pattern = site_config["category_pattern"]
     news_pattern = site_config["news_pattern"]
@@ -68,6 +75,7 @@ async def crawl_site(site_config):
                 category_links.add(href)
         
         print(f"📄 Total categorias encontradas en {start_url}: {len(category_links)}")
+        total_categorias = len(category_links)
 
         # Inicia scrap categorias
         for cat_url in category_links:
@@ -81,10 +89,27 @@ async def crawl_site(site_config):
                     site_config["max_clicks"]
                 )
             else:
-                pass
+                cat_news = set()
             all_news.update(cat_news)
 
         await browser.close()
+
+        # Metricas del crawler
+        duracion = time.time() - start_time
+        total_urls = len(all_news)
+        promedio_por_categoria = total_urls/total_categorias if total_categorias > 0 else 0
+        urls_por_minuto = total_urls / (duracion / 60) if duracion > 0 else 0
+
+        os.makedirs("metrics", exist_ok=True)
+        with open("metrics/crawler_metrics.json", "w", encoding="utf-8") as f:
+            json.dump({
+                "sitio": start_url,
+                "total_categorias": total_categorias,
+                "total_urls_encontradas": total_urls,
+                "urls_por_categoria": round(promedio_por_categoria, 3),
+                "duracion_segundos": round(duracion, 2),
+                "urls_por_minuto": round(urls_por_minuto, 2)
+            }, f, ensure_ascii=False, indent=4)
 
     return all_news
 
