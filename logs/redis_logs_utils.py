@@ -1,5 +1,6 @@
 import json
 import redis
+import os
 
 
 ##### 'Getter' de conexión redis_client
@@ -9,7 +10,12 @@ def get_redis_client():
     # y evitar crear conexiones nuevas
     if not hasattr(get_redis_client, "_client"):
         try:
-            get_redis_client._client = redis.Redis(port=6379, decode_responses=True)
+            redis_port = int(os.getenv("REDIS_PORT"))
+            if redis_port is None:
+                raise KeyError("REDIS_PORT no está seteada")
+            get_redis_client._client = redis.Redis(
+                port=redis_port, decode_responses=True
+            )
             connection = (
                 get_redis_client._client.ping()
             )  # para efectos de testeo, borrar después
@@ -18,6 +24,8 @@ def get_redis_client():
             print(f"[RedisError] No se pudo conectar a Redis: {e}")
         except redis.TimeoutError as e:
             print(f"[RedisError] Timeout en la operación: {e}")
+        except KeyError as e:
+            print(f"[EnvError] Error por variable de entorno: {e}")
         except Exception as e:
             print(f"[RedisError] Error inesperado: {e}")
     return get_redis_client._client
