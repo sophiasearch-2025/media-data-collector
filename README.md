@@ -1,27 +1,39 @@
 # media-data-collector
 
-Para activar el entorno virtual, debe ejecutar los siguientes comandos en su terminal:
-```
-python -m venv venv
-venv/Scripts/activate
-```
 
-Use el siguiente comando para instalar los paquetes necesarios para los scripts del proyecto:
-```
-pip install -r requirements.txt
-```
+## Propósito
 
-En la carpeta `Crawler/` se encuentra el script de recopilación de artículos de noticias y el output de este mismo en formato `csv`. En `scraper/` se encuentra el script de scraping para cada artículo de noticias que el crawler recolecte.
+Nuestros subsistema hace la gestión de los links (crawler) y la recolección de la información (scrapper) que contienen es un recolector de datos, centrado en las noticias para su posterior analisis y estudio.
+_________________________________________________________________________
 
-En la raíz del proyecto se encuentra el script `test_scraper.py`, el cual lee del output del script `crawler_biobio.py` y realiza un scraping para cada artículo que este recolecte.
+## Interacción con otros subsistemas
 
-Si desea realizar un scraping, debe ejecutar `test_scraper.py` de la siguiente forma:
-```
-python test_scraper.py --desde <int> --hasta <int> --output
-```
-Donde:
-- --desde: Indica desde qué línea del archivo `biobiochile.csv` empezar a scrapear.
-- --hasta: Indica hasta qué línea del archivo `biobiochile.csv` scrapear.
-- --output: Incluir esta flag si se desea que el output del scraping sea escrito en un archivo `output.json` dentro de la carpeta `scraper/data`
+La orden de ejecución de nuestro sistema vendrá por parte del subsistema de interfaz.
+La información será enviada al subsistema de la base de datos.
+_________________________________________________________________________
 
-Todos los argumentos son opcionales, si estos no se incluyen se scrapeará todo el archivo csv y los resultados del scraping no se guardarán en memoria.
+## Documentacion interna
+Enlaces a los documentos principales del subsistema:
+
+- [Arquitectura](./arquitectura.md)
+- [Decisiones técnicas](./decisiones.md)
+- [Requisitos](./requisitos.md)
+- [Despliegue](./deploy.md)
+- [Diagramas](./diagramas.md)
+
+_________________________________________________________________________
+
+## Estado del subsistema
+
+El subsistema actualmente se encuentra en desarrollo.
+El crawler (version inicial) y el scrapper ya se encuentra en un estado es funcional.
+Las métricas que servirán para medir el rendimiento del crawler y del scrapper se encuentran definidas y listas para conectarse al resto del desarrollo. Las métricas definidas son las siguientes:
+- M1: Porcentaje de URLs procesadas correctamente y "cantidad sobre total" (noticias correctamente scrapeadas/total de enlaces crawleados) 
+- M2: Noticias correctamente scrapeadas por minuto
+- M3: Enlaces crawleados exitosamente por minuto 
+- M4: Tiempo promedio por página scrapeada 
+- M5: Promedio de URLs encontradas por cada categoría recorrida 
+- M6: Número de enlaces de noticias indentificados por el crawler
+
+_________________________________________________________________________
+
