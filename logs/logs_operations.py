@@ -1,34 +1,6 @@
 import json
 import redis
-import os
-
-
-##### 'Getter' de conexión redis_client
-def get_redis_client():
-    # _client funciona como un atributo estático privado
-    # para verificar si la conexión ya se estableció o no
-    # y evitar crear conexiones nuevas
-    if not hasattr(get_redis_client, "_client"):
-        try:
-            redis_port = int(os.getenv("REDIS_PORT"))
-            if redis_port is None:
-                raise KeyError("REDIS_PORT no está seteada")
-            get_redis_client._client = redis.Redis(
-                port=redis_port, decode_responses=True
-            )
-            connection = (
-                get_redis_client._client.ping()
-            )  # para efectos de testeo, borrar después
-            print(connection)  # para efectos de testeo, borrar después
-        except redis.ConnectionError as e:
-            print(f"[RedisError] No se pudo conectar a Redis: {e}")
-        except redis.TimeoutError as e:
-            print(f"[RedisError] Timeout en la operación: {e}")
-        except KeyError as e:
-            print(f"[EnvError] Error por variable de entorno: {e}")
-        except Exception as e:
-            print(f"[RedisError] Error inesperado: {e}")
-    return get_redis_client._client
+import utils.redis_utils as redis_utils
 
 
 ##### Anexar un log_registro a la lista scrape_logs
@@ -43,7 +15,7 @@ def anexar_scrape_log(
     error=None,  # indicar el error si lo hay
     code=None,  # código de estado solicitud http (200, 404, 400, 429, etc)
 ):
-    redis_client = get_redis_client()
+    redis_client = redis_utils.get_redis_client()
     log_registro = {
         "url": url,
         "medio": medio,
@@ -69,7 +41,7 @@ def anexar_scrape_log(
 ##### Limpiar lista scrape_logs, borra toda log entry
 ##### Retorna True si la inserción es exitosa, False si falló
 def clear_scrape_logs():
-    redis_client = get_redis_client()
+    redis_client = redis_utils.get_redis_client()
     try:
         redis_client.delete("scrape_logs")
         return True
