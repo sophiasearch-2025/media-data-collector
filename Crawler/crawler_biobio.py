@@ -12,6 +12,11 @@ GOTO_TIMEOUT_START = 15000       # 15s para la home
 GOTO_TIMEOUT_CATEGORY = 15000    # 15s para páginas de categoría
 SHORT_WAIT = 500                 # 0.5s para wait_for_timeout
 CLICK_WAIT = 500                 # 0.5s tras click
+import time
+import json
+import os
+
+
 
 SITES = {
     "biobiochile": {

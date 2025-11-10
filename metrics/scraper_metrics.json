@@ -1,0 +1,9 @@
+{
+    "total_urls_procesadas": 1520,
+    "scrape_exitosos": 1520,
+    "scrape_fallidos": 0,
+    "porcentaje_exito": 100.0,
+    "duracion_segundos": 587.4,
+    "noticias_por_minuto": 155.259,
+    "tiempo_promedio_scrape": 0.386
+}
