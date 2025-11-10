@@ -1,6 +1,5 @@
 import json
 import redis
-from datetime import datetime
 
 
 ##### 'Getter' de conexión redis_client
@@ -29,20 +28,23 @@ def get_redis_client():
 def anexar_scrape_log(
     url,  # URL scrapeada
     medio,  # Medio de la noticia extraída (estandarizar con ID o string simplemente?)
+    starting_time,
+    finishing_time,
+    duration,
     status,  # ERROR o SUCCESS
     error=None,  # indicar el error si lo hay
     code=None,  # código de estado solicitud http (200, 404, 400, 429, etc)
-    duration=None,
 ):
     redis_client = get_redis_client()
     log_registro = {
         "url": url,
         "medio": medio,
+        "starting_time": starting_time,
+        "finishing_time": finishing_time,
+        "duration_ms": duration,
         "status": status,
         "error": error,
         "http_code": code,
-        "duration_ms": duration,
-        "timestamp": datetime.utcnow().isoformat(),
     }
     try:
         redis_client.lpush("scrape_logs", json.dumps(log_registro))
