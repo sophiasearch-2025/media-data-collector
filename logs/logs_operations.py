@@ -1,3 +1,4 @@
+from datetime import datetime, time
 import json
 import redis
 import utils.redis_utils as redis_utils
@@ -6,12 +7,13 @@ import utils.redis_utils as redis_utils
 ##### Anexar un log_registro a la lista scrape_logs
 ##### Retorna True si la inserción es exitosa, False si falló
 def anexar_scrape_log(
-    url,  # URL scrapeada
-    medio,  # Medio de la noticia extraída (estandarizar con ID o string simplemente?)
-    starting_time,
-    finishing_time,
-    duration,
-    status,  # ERROR o SUCCESS
+    url: str,  # URL scrapeada
+    medio: str,  # Medio de la noticia extraída (estandarizar con ID o string simplemente?)
+    batch_id: int,
+    starting_time: datetime,
+    finishing_time: datetime,
+    duration: time,
+    status: str,  # ERROR o SUCCESS
     error=None,  # indicar el error si lo hay
     code=None,  # código de estado solicitud http (200, 404, 400, 429, etc)
 ):
@@ -19,6 +21,7 @@ def anexar_scrape_log(
     log_registro = {
         "url": url,
         "medio": medio,
+        "batch_id": batch_id,
         "starting_time": starting_time,
         "finishing_time": finishing_time,
         "duration_ms": duration,
