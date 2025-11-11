@@ -91,51 +91,106 @@ Si se necesita que el equipo acceda desde cualquier lugar, existen dos opciones 
 
 ### Opción 1: Usar ngrok (rápido y sin configuración)
 
-1. Instalar ngrok:
+Ngrok permite exponer tu API local a Internet de forma temporal mediante un túnel seguro HTTPS.  
+Ideal para **demos, pruebas o acceso remoto** sin necesidad de configurar puertos o routers.
 
-   ```bash
-   sudo snap install ngrok
-   ```
-   Si no funciona puedes hacerlo via Apt:
-   ```bash
-   curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
-     | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
-     && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
-     | sudo tee /etc/apt/sources.list.d/ngrok.list \
-     && sudo apt update \
-     && sudo apt install ngrok
-   ```
-3. Ejecutar la API normalmente:
+#### 1. Instalar ngrok (método recomendado)
 
-   ```bash
-   uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000
-   ```
+Ejecuta en tu terminal:
 
-4. En otra terminal:
+```bash
+sudo apt update
+sudo apt install ngrok
+```
 
-   ```bash
-   ngrok http 8000
-   ```
+Si tu sistema no encuentra el paquete, puedes instalarlo manualmente con:
 
-5. Ngrok mostrará un enlace público, por ejemplo:
+```bash
+curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc   | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null   && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main"   | sudo tee /etc/apt/sources.list.d/ngrok.list   && sudo apt update   && sudo apt install ngrok
+```
 
-   ```
-   https://random-id.ngrok-free.app
-   ```
+#### 2. Conectar tu cuenta (solo la primera vez)
 
-   Accesos disponibles:
-   - `/docs` → documentación interactiva  
-   - `/api/metrics/` → JSON con métricas  
+1. Crea o inicia sesión en [https://dashboard.ngrok.com](https://dashboard.ngrok.com)  
+2. Copia tu **authtoken** desde el panel.  
+3. Ejecútalo en tu terminal:
 
-El enlace es temporal y dejará de funcionar cuando se cierre ngrok o se apague el equipo.
+```bash
+ngrok config add-authtoken TU_AUTHTOKEN_AQUI
+```
+
+#### 3. Ejecutar la API de FastAPI
+
+```bash
+uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000
+```
+
+#### 4. Abrir el túnel de ngrok
+
+En otra terminal (sin cerrar la anterior):
+
+```bash
+ngrok http 8000
+```
+
+Verás una salida similar a:
+
+```
+Forwarding  https://random-id.ngrok-free.dev -> http://localhost:8000
+```
+
+#### 5. Acceder desde cualquier lugar
+
+Usa la URL pública mostrada por ngrok (por ejemplo):
+
+```
+https://random-id.ngrok-free.dev
+```
+
+**Rutas disponibles:**
+- `/docs` → Documentación interactiva (Swagger UI)  
+- `/api/metrics/` → JSON con las métricas  
+
+#### Consideraciones importantes
+
+- La URL generada por ngrok es temporal y cambia cada vez que reinicias ngrok.  
+- Si cierras la terminal de ngrok o apagas el equipo, el túnel se cierra.  
+- Si necesitas una URL fija o persistente, puedes:
+  - Usar el plan Pro de ngrok, o  
+  - Desplegar la API en Render (ver siguiente sección).
+
+#### Consejo práctico (automatización)
+
+Puedes crear un script simple para levantar automáticamente la API y ngrok juntos:
+
+```bash
+#!/bin/bash
+uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000 &
+sleep 3
+ngrok http 8000
+```
+
+Guárdalo como `deploy_ngrok.sh`, luego dale permisos de ejecución:
+
+```bash
+chmod +x deploy_ngrok.sh
+```
+
+Y ejecútalo así:
+
+```bash
+./deploy_ngrok.sh
+```
+
+Esto levantará tu API y el túnel de ngrok automáticamente.
 
 ---
 
 ### Opción 2: Desplegar en Render (gratuito)
 
-1. Crear una cuenta en [https://render.com](https://render.com)
-2. Conectar el repositorio de GitHub donde esté la API.
-3. Crear un nuevo servicio web (“New Web Service”).
+1. Crear una cuenta en [https://render.com](https://render.com)  
+2. Conectar el repositorio de GitHub donde esté la API.  
+3. Crear un nuevo servicio web (“New Web Service”).  
 4. Configuración recomendada:
    - **Runtime:** Python  
    - **Build Command:**  
@@ -149,9 +204,9 @@ El enlace es temporal y dejará de funcionar cuando se cierre ngrok o se apague 
    - **Port:** 10000
 5. Render desplegará la API y entregará una URL pública, por ejemplo:
 
-   ```
-   https://api-metricas-sophia.onrender.com
-   ```
+```
+https://api-metricas-sophia.onrender.com
+```
 
 Accesos disponibles:
 
