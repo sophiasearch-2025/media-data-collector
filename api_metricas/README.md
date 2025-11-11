@@ -96,20 +96,28 @@ Si se necesita que el equipo acceda desde cualquier lugar, existen dos opciones 
    ```bash
    sudo snap install ngrok
    ```
-
-2. Ejecutar la API normalmente:
+   Si no funciona puedes hacerlo via Apt:
+   ```bash
+   curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc \
+     | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null \
+     && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main" \
+     | sudo tee /etc/apt/sources.list.d/ngrok.list \
+     && sudo apt update \
+     && sudo apt install ngrok
+   ```
+3. Ejecutar la API normalmente:
 
    ```bash
    uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000
    ```
 
-3. En otra terminal:
+4. En otra terminal:
 
    ```bash
    ngrok http 8000
    ```
 
-4. Ngrok mostrará un enlace público, por ejemplo:
+5. Ngrok mostrará un enlace público, por ejemplo:
 
    ```
    https://random-id.ngrok-free.app
