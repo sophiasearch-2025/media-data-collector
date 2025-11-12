@@ -24,6 +24,10 @@ def main():
             if(medio not in medios):
                 print("No existe el medio ingresado")
             else:
+                # --- crear el listener de envio de datos ---
+                send_datos_process = subprocess.Popen(  ['python',
+                                                    'envio_datos.py'])
+                
                 # --- crear scraper (el cual espera a mensajes de crawler) ---
                 scrap_process = subprocess.Popen(  ['python',
                                                     '../scraper/scraper_biobio.py'])
@@ -32,7 +36,7 @@ def main():
                                                     '../Crawler/crawler_biobio.py',
                                                     medio])
                 # --- se esperan a los procesos para continuar ---
-                crawl_process.wait(); scrap_process.wait()
+                send_datos_process.wait(); crawl_process.wait(); scrap_process.wait()
 
         # --- FALLO DEL SCHEDULER ---
         except Exception as e:

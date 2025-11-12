@@ -4,13 +4,14 @@ from datetime import datetime as dtime
 PLANNER_QUEUE = "planner_queue"
 SCRAPER_QUEUE = "scraper_queue"
 ERROR_QUEUE   = "error_queue"
+SEND_DATA_QUEUE = "send_data_queue"
 
 # --- bloque para la conexion global de RabbitMQ ---
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 planner_channel = connection.channel()
 
 # --- declaración de colas ---
-for q in [PLANNER_QUEUE, SCRAPER_QUEUE, ERROR_QUEUE]:
+for q in [PLANNER_QUEUE, SCRAPER_QUEUE, ERROR_QUEUE, SEND_DATA_QUEUE]:
     planner_channel.queue_declare(queue=q, durable=True)
 ''' IMPORTANTE: "durable=True" hace que las colas se guarden en disco, osea,
                 las colas vuelven estar disponibles automaticamente luego
