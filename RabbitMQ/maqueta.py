@@ -18,11 +18,6 @@ for q in [PLANNER_QUEUE, SCRAPER_QUEUE, ERROR_QUEUE]:
 
 def callback(ch, method, properties, body):
     starting_time = dtime.now().timestamp()
-    message = {
-        "url"
-        "tags"
-        "metricas"
-    }
     try:
         message = json.loads(body)
 
