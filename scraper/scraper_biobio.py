@@ -3,6 +3,23 @@ import json
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import re
+import pika
+from datetime import datetime as dtime
+
+
+SCRAPER_QUEUE = "scraper_queue"
+ERROR_QUEUE = "error_queue"
+SEND_DATA_QUEUE = "send_data_queue"
+
+# Conectar con RabbitMQ
+connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
+
+# Abrir un canal de conexión con RabbitMQ
+scraper_channel = connection.channel()
+
+# Definir las colas a escuchar
+for q in [SCRAPER_QUEUE, ERROR_QUEUE, SEND_DATA_QUEUE]:
+    scraper_channel.queue_declare(queue = q, durable = True)
 
 
 def extract(soup: BeautifulSoup, selectors: list[str], default = None) -> str | None:
@@ -82,11 +99,12 @@ def extract_body(soup: BeautifulSoup, selectors: list, default: str = "") -> str
         return "\n".join(cuerpo)
 
 
-def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dict | None:
+def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     '''
     Realiza el scraping completo de una noticia individual. Esta función puede devolver 
     tanto un diccionario de python como un None, dependiendo de los parámetros y el output.
     '''
+    invalid_args = []
     
     try:
         # Realizar una request al sitio
@@ -109,14 +127,14 @@ def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dic
                 "div.fecha-visitas p.fecha",
             ])
         )
-        if validate and not fecha: return None
+        if validate and not fecha: invalid_args.append("fecha")
 
         titulo = extract(soup, [
             "h1.post-title",
             "h1.titulo",
             "div.nota-top-content div.top-content-text h1.titular",
         ])
-        if validate and not titulo: return None
+        if validate and not titulo: invalid_args.append("titulo")
 
         autor = extract(soup, [
             "div.autores-trust-project div.contenedor-datos p.nombres a",
@@ -142,7 +160,7 @@ def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dic
             "div.contenido-nota div[class^='banners-contenido-nota-'] h2, div.contenido-nota div[class^='banners-contenido-nota-'] p",
             "div.container-nota-body div.nota-content div.contenido p, div.container-nota-body div.nota-content div.contenido h2",
         ])
-        if validate and not cuerpo: return None
+        if validate and not cuerpo: invalid_args.append("cuerpo")
 
         multimedia = extract_multimedia(soup, [
             "div.post-main div.post-image img",
@@ -152,11 +170,12 @@ def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dic
             "div.nota-top-content img"
         ])
 
+        if (validate and invalid_args):
+            return invalid_args
+
         return {
-            "url": url,
             "titulo": titulo,
             "fecha": fecha,
-            "tags": tags,
             "autor": autor,
             "desc_autor": desc_autor,
             "abstract": abstract,
@@ -170,7 +189,80 @@ def scrap_news_article(url: str, tags: list[str], validate: bool = False) -> dic
         return None
 
 
+def consume_article(ch, method, properties, body):
+    '''
+    Función llamada por RabbitMQ cada vez que le llegue un artículo extraido
+    por el crawler para scrapear.
+    '''
+    starting_time = dtime.now().timestamp()
+    try:
+        # Cargar el mensaje recibido por RabbitMQ y extraer la URL
+        mensaje = json.loads(body)
+        url = mensaje["url"]
+
+        # Scrapear la URL
+        scraper_results = scrap_news_article(url, validate = True)
+
+        # Si devuelve una lista, detengo el proceso con un error
+        if (isinstance(scraper_results, list)):
+            raise Exception(f"Error en parsear información requerida de la noticia: {scraper_results}")
+
+        finishing_time = dtime.now().timestamp()
+
+        # Juntar el resultado del scraping con el mensaje recibido
+        for key, value in scraper_results.items():
+            mensaje[key] = value
+        
+        # Añadir la duración del scraping al mensaje (*** ¿Necesario?)
+        mensaje["starting_time"] = starting_time
+        mensaje["finishing_time"] = finishing_time
+        mensaje["duration_ms"] = int((finishing_time - starting_time) * 1000)
+
+        # Enviar el mensaje al componente de envío de datos
+        scraper_channel.basic_publish(
+            routing_key = SEND_DATA_QUEUE,
+            body = json.dumps(mensaje),
+            properties = pika.BasicProperties(delivery_mode = 2)
+        )
+
+    except Exception as e:
+        finishing_time = dtime.now().timestamp()
+        error_msg = {
+            "url": mensaje["url"] if mensaje["url"] else "",
+            "medio": mensaje["medio"] if mensaje["medio"] else "",
+            "starting_time": starting_time,
+            "finishing_time": finishing_time,
+            "duration_ms": int((finishing_time - starting_time) * 1000),
+            "status": "FAILED",
+            "error": str(e)
+        }
+        scraper_channel.basic_publish(
+            exchange = '',
+            routing_key = ERROR_QUEUE,
+            body = json.dumps(error_msg),
+            properties = pika.BasicProperties(delivery_mode = 2)
+        )
+
+    # Acknowledge
+    ch.basic_ack(delivery_tag = method.delivery_tag)
+
+
 def main():
+    scraper_channel.basic_qos(prefetch_count = 1)
+    scraper_channel.basic_consume(queue = SEND_DATA_QUEUE, on_message_callback = consume_article)
+    scraper_channel.start_consuming()
+
+
+if __name__ == "__main__":
+    main()
+
+
+# =====================================================
+#                        Testing
+# =====================================================
+
+
+def test():
     test_url = "https://www.biobiochile.cl/noticias/servicios/beneficios/2025/10/23/asi-funciona-el-beneficio-estrudiantil-que-cubre-mas-de-un-millon-de-pesos-del-arancel.shtml"
     noticia = scrap_news_article(test_url, [])
     if noticia:
@@ -188,7 +280,3 @@ def main():
 # 8. "https://www.biobiochile.cl/especial/bbcl-investiga/noticias/entrevistas/2025/11/01/falta-una-izquierda-mas-de-resultados-que-de-eslogan-carlos-cuadrado-ppd-candidato-a-diputado.shtml"
 # 9. "https://www.biobiochile.cl/especial/bbcl-investiga/noticias/de-pasillo/2025/10/30/embargan-bienes-de-alvaro-saieh-por-deuda-de-27-millones-de-dolares-con-banco-itau.shtml"
 # 10. "https://www.biobiochile.cl/noticias/servicios/beneficios/2025/10/23/asi-funciona-el-beneficio-estrudiantil-que-cubre-mas-de-un-millon-de-pesos-del-arancel.shtml"
-
-
-if __name__ == "__main__":
-    main()
