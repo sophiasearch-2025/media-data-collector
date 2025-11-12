@@ -46,7 +46,7 @@ def main(desde: int = 1, hasta: int = None, output: bool = False):
             tags = []   # por ahora no hay tags
             #t, url = articulo
             #tags = t.split("/")
-            doc = scrap_news_article(url, tags, validate = True)
+            doc = scrap_news_article(url, validate = True)
 
             if (isinstance(doc, dict)):
                 exitos += 1
