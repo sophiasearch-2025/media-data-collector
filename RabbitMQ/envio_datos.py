@@ -14,7 +14,8 @@ planner_channel.queue_declare(queue=SEND_DATA_QUEUE, durable=True)
 def callback(ch, method, properties, body):
     message = json.loads(body)
     print(message)
-    print("===================================")    
+    print("===================================")   
+    ch.basic_ack(delivery_tag=method.delivery_tag) 
 
 # --- el planner consume los mensajes de su cola ---
 planner_channel.basic_qos(prefetch_count=1)

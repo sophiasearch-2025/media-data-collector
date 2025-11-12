@@ -106,7 +106,7 @@ El formato json que recibe el sistema de logs y errores (desde scraper al parece
         "starting_time": starting_time, -> (timestamp 'YYYY-MM-DD HH:MM:SS' ?)
         "finishing_time": finishing_time, -> (timestamp 'YYYY-MM-DD HH:MM:SS' ?)
         "duration_ms": duration, -> la diferencia en ms
-        "status": status, -> FAILED -o- SUCCESSED
+        "status": status, -> ERROR -o- SUCCESSED
         "error": error, -> devovler el mensaje de error en caso de tenerlo
     }
 '''

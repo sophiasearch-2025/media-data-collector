@@ -24,26 +24,27 @@ def main():
             if(medio not in medios):
                 print("No existe el medio ingresado")
             else:
-                # --- crear el listener de envio de datos ---
-                send_datos_process = subprocess.Popen(  ['python',
-                                                    'envio_datos.py'])
-                
-                # --- crear scraper (el cual espera a mensajes de crawler) ---
-                scrap_process = subprocess.Popen(  ['python',
-                                                    '../scraper/scraper_biobio.py'])
-                # --- crear crawler ---
+                # # --- crear el listener de envio de datos ---
+                # send_datos_process = subprocess.Popen(  ['python',
+                #                                     'RabbitMQ/envio_datos.py'])
+                # # --- crear proceso del scraper (el cual espera a mensajes de crawler) ---
+                # scrap_process = subprocess.Popen(  ['python',
+                #                                     'scraper/scraper_biobio.py'])
+                # --- crear proceso del crawler ---
                 crawl_process = subprocess.Popen(  ['python',
-                                                    '../Crawler/crawler_biobio.py',
+                                                    'RabbitMQ/pseudo_crawler.py',
                                                     medio])
                 # --- se esperan a los procesos para continuar ---
-                send_datos_process.wait(); crawl_process.wait(); scrap_process.wait()
+                # send_datos_process.wait();
+                crawl_process.wait();
+                # scrap_process.wait()
 
         # --- FALLO DEL SCHEDULER ---
         except Exception as e:
             # --- se genera el mensaje de error ---
             error_msg = {
                 "from": "scheduler", # agregar esto quizás?
-                "time_error": str(dtime.now().timestamp()), # en timestamp
+                "time_error": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "state": "error",
                 "error": str(e)
             }
