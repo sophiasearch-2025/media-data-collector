@@ -131,7 +131,11 @@ async def crawl_news(site_config, category_links):
                 )
             else:
                 cat_news = set()
+
+
+            
             slug = cat_url.rstrip("/").split("/")[-1]
+
             for link in cat_news:
                 try:
                     categoria = slug  # valor por defecto
@@ -196,6 +200,7 @@ async def main():
 
         categorias = list(categorias)
 
+        # Avance procesado en lotes para futura paralelización
         for i in range (0, len(categorias), 10):
             if i + 10 < len(categorias):
                 tope = i+10
@@ -221,6 +226,8 @@ async def main():
                 "duracion_segundos": round(duracion, 2),
                 "urls_por_minuto": round(urls_por_minuto, 2)
             }, f, ensure_ascii=False, indent=4)
+
+
 
         # Guardar links en un csv
         csv_file_path = f"Crawler/{site}.csv"
