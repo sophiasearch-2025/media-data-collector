@@ -8,7 +8,7 @@ from datetime import datetime as dtime
 
 
 SCRAPER_QUEUE = "scraper_queue"
-ERROR_QUEUE = "error_queue"
+LOG_QUEUE = "log_queue"
 SEND_DATA_QUEUE = "send_data_queue"
 
 # Conectar con RabbitMQ
@@ -18,7 +18,7 @@ connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 scraper_channel = connection.channel()
 
 # Definir las colas a escuchar
-for q in [SCRAPER_QUEUE, ERROR_QUEUE, SEND_DATA_QUEUE]:
+for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
     scraper_channel.queue_declare(queue = q, durable = True)
 
 
@@ -217,6 +217,7 @@ def consume_article(ch, method, properties, body):
         mensaje["starting_time"] = starting_time.strftime("%Y-%m-%d %H:%M:%S")
         mensaje["finishing_time"] = finishing_time.strftime("%Y-%m-%d %H:%M:%S")
         mensaje["duration_ms"] = int((finishing_time - starting_time).total_seconds() * 1000)
+        mensaje["status"] = "SUCCESS"
 
         # Enviar el mensaje al componente de envío de datos
         scraper_channel.basic_publish(
@@ -234,12 +235,12 @@ def consume_article(ch, method, properties, body):
             "starting_time": starting_time.strftime("%Y-%m-%d %H:%M:%S"),
             "finishing_time": finishing_time.strftime("%Y-%m-%d %H:%M:%S"),
             "duration_ms": int((finishing_time - starting_time).total_seconds() * 1000),
-            "status": "FAILED",
+            "status": "ERROR",
             "error": str(e)
         }
         scraper_channel.basic_publish(
             exchange = '',
-            routing_key = ERROR_QUEUE,
+            routing_key = LOG_QUEUE,
             body = json.dumps(error_msg),
             properties = pika.BasicProperties(delivery_mode = 2)
         )
