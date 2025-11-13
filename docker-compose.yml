@@ -13,6 +13,9 @@ services:
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
       - rabbitmq_log:/var/log/rabbitmq
+      # --- LÍNEA EXTRAA
+      # Archivo .conf que permite conectarse al contenedor con credenciales guest
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
 
   redis:
     image: redis:7.2
