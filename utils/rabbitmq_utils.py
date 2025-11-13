@@ -1,4 +1,5 @@
 import pika
+
 from . import environ_var as ev
 
 
@@ -28,4 +29,5 @@ def get_rabbit_connection():
 
         except Exception as e:
             print("Error inesperado al obtener conexión RabbitMQ")
-            raise RuntimeError("Error inesperado RabbitMQ") from e
+
+    return get_rabbit_connection._connection

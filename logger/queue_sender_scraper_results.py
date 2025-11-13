@@ -1,7 +1,9 @@
-import pika
-import utils.rabbitmq_utils as rabbit
 import json
 from datetime import datetime, timedelta
+
+import pika
+
+import utils.rabbitmq_utils as rabbit
 
 """
 scraping_log_queue recibe:
@@ -18,6 +20,10 @@ def declare_scraping_log_queue():
     if not hasattr(declare_scraping_log_queue, "_queue_exists"):
         try:
             rabbit_connect = rabbit.get_rabbit_connection()
+            if rabbit_connect is None:
+                raise RuntimeError(
+                    "No se ha podido conectar a RabbitMQ. rabbit_connect is None."
+                )
             rabbit_channel = rabbit_connect.channel()
             rabbit_channel.queue_declare(QUEUE_NAME, durable=True)
             declare_scraping_log_queue._queue_exists = True

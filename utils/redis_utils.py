@@ -1,4 +1,5 @@
 import redis
+
 from . import environ_var as ev
 
 
@@ -9,11 +10,10 @@ def get_redis_client():
     # y evitar crear conexiones nuevas
     if not hasattr(get_redis_client, "_client"):
         try:
-            redis_port = ev.get_environ_var("REDIS_PORT")
+            redis_port = int(ev.get_environ_var("REDIS_PORT"))
             get_redis_client._client = redis.Redis(
                 port=redis_port, decode_responses=True
             )
-            return get_redis_client._client
 
         except redis.ConnectionError as e:
             print("No se pudo conectar a Redis")
@@ -24,3 +24,5 @@ def get_redis_client():
         except Exception as e:
             print(f"Error inesperado al intentar conectarse a Redis: {e}")
             raise
+
+    return get_redis_client._client
