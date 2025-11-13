@@ -8,7 +8,7 @@ from datetime import datetime as dtime
 
 
 SCRAPER_QUEUE = "scraper_queue"
-ERROR_QUEUE = "error_queue"
+LOG_QUEUE = "log_queue"
 SEND_DATA_QUEUE = "send_data_queue"
 
 # Conectar con RabbitMQ
@@ -18,7 +18,7 @@ connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 scraper_channel = connection.channel()
 
 # Definir las colas a escuchar
-for q in [SCRAPER_QUEUE, ERROR_QUEUE, SEND_DATA_QUEUE]:
+for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
     scraper_channel.queue_declare(queue = q, durable = True)
 
 
@@ -194,7 +194,7 @@ def consume_article(ch, method, properties, body):
     Función llamada por RabbitMQ cada vez que le llegue un artículo extraido
     por el crawler para scrapear.
     '''
-    starting_time = dtime.now().timestamp()
+    starting_time = dtime.now()
     try:
         # Cargar el mensaje recibido por RabbitMQ y extraer la URL
         mensaje = json.loads(body)
@@ -207,38 +207,40 @@ def consume_article(ch, method, properties, body):
         if (isinstance(scraper_results, list)):
             raise Exception(f"Error en parsear información requerida de la noticia: {scraper_results}")
 
-        finishing_time = dtime.now().timestamp()
+        finishing_time = dtime.now()
 
         # Juntar el resultado del scraping con el mensaje recibido
         for key, value in scraper_results.items():
             mensaje[key] = value
         
         # Añadir la duración del scraping al mensaje (*** ¿Necesario?)
-        mensaje["starting_time"] = starting_time
-        mensaje["finishing_time"] = finishing_time
-        mensaje["duration_ms"] = int((finishing_time - starting_time) * 1000)
+        mensaje["starting_time"] = starting_time.strftime("%Y-%m-%d %H:%M:%S")
+        mensaje["finishing_time"] = finishing_time.strftime("%Y-%m-%d %H:%M:%S")
+        mensaje["duration_ms"] = int((finishing_time - starting_time).total_seconds() * 1000)
+        mensaje["status"] = "SUCCESS"
 
         # Enviar el mensaje al componente de envío de datos
         scraper_channel.basic_publish(
+            exchange='',
             routing_key = SEND_DATA_QUEUE,
             body = json.dumps(mensaje),
             properties = pika.BasicProperties(delivery_mode = 2)
         )
 
     except Exception as e:
-        finishing_time = dtime.now().timestamp()
+        finishing_time = dtime.now()
         error_msg = {
             "url": mensaje["url"] if mensaje["url"] else "",
             "medio": mensaje["medio"] if mensaje["medio"] else "",
-            "starting_time": starting_time,
-            "finishing_time": finishing_time,
-            "duration_ms": int((finishing_time - starting_time) * 1000),
-            "status": "FAILED",
+            "starting_time": starting_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "finishing_time": finishing_time.strftime("%Y-%m-%d %H:%M:%S"),
+            "duration_ms": int((finishing_time - starting_time).total_seconds() * 1000),
+            "status": "ERROR",
             "error": str(e)
         }
         scraper_channel.basic_publish(
             exchange = '',
-            routing_key = ERROR_QUEUE,
+            routing_key = LOG_QUEUE,
             body = json.dumps(error_msg),
             properties = pika.BasicProperties(delivery_mode = 2)
         )
@@ -249,7 +251,7 @@ def consume_article(ch, method, properties, body):
 
 def main():
     scraper_channel.basic_qos(prefetch_count = 1)
-    scraper_channel.basic_consume(queue = SEND_DATA_QUEUE, on_message_callback = consume_article)
+    scraper_channel.basic_consume(queue = SCRAPER_QUEUE, on_message_callback = consume_article)
     scraper_channel.start_consuming()
 
 
