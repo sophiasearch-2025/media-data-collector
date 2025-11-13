@@ -1,5 +1,7 @@
 import json
+import os
 import re
+import sys
 from datetime import datetime as dtime
 from urllib.parse import urljoin
 
@@ -7,6 +9,8 @@ import pika
 import requests
 from bs4 import BeautifulSoup
 
+# Importa scraping_results_send() desde logger/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from logger.queue_sender_scraper_results import scraping_results_send
 
 SCRAPER_QUEUE = "scraper_queue"
