@@ -36,6 +36,8 @@ crawler_channel = connection.channel()
 # declarar el canal
 for q in [SCRAPER_QUEUE, LOG_QUEUE]:
     crawler_channel.queue_declare(queue=q, durable=True)
+# conjunto global para evitar enviar duplicados
+seen_links = set()
 
 def send_link (link, tags):
     message = {
@@ -230,15 +232,15 @@ async def crawl_news(site_config, category_links):
 
                 categoria = get_category(link, slug)
 
-                # Envia link y categoria a Scrapper
-                # send_link(link, categoria)
-
                 news.add((categoria, link))
+
+                # Envia link y categoria a Scrapper si este no ha sido enviado previamente
+                if link not in seen_links:
+                    send_link(link, categoria)
+                    seen_links.add(link)
 
         await browser.close()
 
-    for tag, new in news:
-        send_link(new, tag)
     return news
 
 
