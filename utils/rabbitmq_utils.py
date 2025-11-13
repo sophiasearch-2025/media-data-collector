@@ -1,5 +1,5 @@
 import pika
-import environ_var as ev
+from . import environ_var as ev
 
 
 # 'Getter' de conexión con RabbitMQ
@@ -19,7 +19,7 @@ def get_rabbit_connection():
             return get_rabbit_connection._connection
 
         except pika.exceptions.AMQPConnectionError as e:
-            print("No se pudo conectar a RabbitMQ")
+            print(f"No se pudo conectar a RabbitMQ: {e}")
             raise RuntimeError("Error de conexión RabbitMQ") from e
 
         except OSError as e:

@@ -1,5 +1,5 @@
 import redis
-import environ_var as ev
+from . import environ_var as ev
 
 
 ##### 'Getter' de conexión redis_client
