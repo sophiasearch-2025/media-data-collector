@@ -14,6 +14,9 @@ sche_channel = connection.channel()
 sche_channel.queue_declare(queue=LOG_QUEUE, durable=True)
 
 def main():
+    # --- crear listener del logger inicialmente (prioritario) --- 
+    # logger_process = subprocess.Popen( ['python',
+    #                                     'RUTA DEL LOGGER'])
     # --- se recibe el medio el cual se quiere crawlear por argumento --- 
     if len(sys.argv) != 2:
         print("Se debe ejecutar con un solo argumento, y debe ser el nombre del medio.")
@@ -24,20 +27,21 @@ def main():
             if(medio not in medios):
                 print("No existe el medio ingresado")
             else:
-                # # --- crear el listener de envio de datos ---
+                # --- crear el listener de envio de datos ---
                 send_datos_process = subprocess.Popen(  ['python',
                                                     'RabbitMQ/send_data.py'])
-                # # --- crear proceso del scraper (el cual espera a mensajes de crawler) ---
+                # --- crear listener del scraper (el cual espera a mensajes de crawler) ---
                 scrap_process = subprocess.Popen(  ['python',
                                                     'scraper/scraper_biobio.py'])
-                # --- crear proceso del crawler ---
+                # # --- crear listener del crawler ---
                 crawl_process = subprocess.Popen(  ['python',
-                                                    'RabbitMQ/pseudo_crawler.py',
+                                                    'Crawler/crawler_biobio.py',
                                                     medio])
                 # --- se esperan a los procesos para continuar ---
-                send_datos_process.wait()
+                # send_datos_process.wait()
+                # scrap_process.wait()
+                # logger_process.wait()
                 crawl_process.wait()
-                scrap_process.wait()
 
         # --- FALLO DEL SCHEDULER ---
         except Exception as e:

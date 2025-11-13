@@ -104,7 +104,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     Realiza el scraping completo de una noticia individual. Esta función puede devolver 
     tanto un diccionario de python como un None, dependiendo de los parámetros y el output.
     '''
-    invalid_args = []
+    invalid_args = ["Error, falta lo siguiente: "]
     
     try:
         # Realizar una request al sitio
@@ -170,7 +170,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
             "div.nota-top-content img"
         ])
 
-        if (validate and invalid_args):
+        if (validate and len(invalid_args)>1):
             return invalid_args
 
         return {
@@ -186,7 +186,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
 
     except Exception as e:
         print(f"Error al scrapear la siguiente url:\n{url}\nDetalle: {e}")
-        return None
+        return [e]
 
 
 def consume_article(ch, method, properties, body):
@@ -199,39 +199,47 @@ def consume_article(ch, method, properties, body):
         # Cargar el mensaje recibido por RabbitMQ y extraer la URL
         mensaje = json.loads(body)
         url = mensaje["url"]
-
+        print(f"Mensaje recibido en scraper.")
         # Scrapear la URL
         scraper_results = scrap_news_article(url, validate = True)
 
         # Si devuelve una lista, detengo el proceso con un error
         if (isinstance(scraper_results, list)):
-            raise Exception(f"Error en parsear información requerida de la noticia: {scraper_results}")
+            raise Exception(f"Error en el scraping: {scraper_results}")
 
         finishing_time = dtime.now()
-
-        # Juntar el resultado del scraping con el mensaje recibido
-        for key, value in scraper_results.items():
-            mensaje[key] = value
         
         # Añadir la duración del scraping al mensaje (*** ¿Necesario?)
         mensaje["starting_time"] = starting_time.strftime("%Y-%m-%d %H:%M:%S")
         mensaje["finishing_time"] = finishing_time.strftime("%Y-%m-%d %H:%M:%S")
         mensaje["duration_ms"] = int((finishing_time - starting_time).total_seconds() * 1000)
         mensaje["status"] = "SUCCESS"
-
-        # Enviar el mensaje al componente de envío de datos
+        # --- mensaje para logs ---
         scraper_channel.basic_publish(
             exchange='',
-            routing_key = SEND_DATA_QUEUE,
+            routing_key = LOG_QUEUE,
             body = json.dumps(mensaje),
             properties = pika.BasicProperties(delivery_mode = 2)
         )
-
+        print("Mensaje enviado hacia logs desde scraper...")
+        # --- mensaje para send_data ---
+        send_data_msg = scraper_results
+        send_data_msg["url"] = url
+        # --- publicar mensaje hacia send_data ---
+        scraper_channel.basic_publish(
+            exchange='',
+            routing_key = SEND_DATA_QUEUE,
+            body = json.dumps(send_data_msg),
+            properties = pika.BasicProperties(delivery_mode = 2)
+        )
+        print("Mensaje enviado hacia send_data desde scraper...")
+    
     except Exception as e:
+        print(f"Error al scrapear:\n {e}")
         finishing_time = dtime.now()
         error_msg = {
-            "url": mensaje["url"] if mensaje["url"] else "",
-            "medio": mensaje["medio"] if mensaje["medio"] else "",
+            "url": mensaje["url"] if ("url" in mensaje) else "",
+            "medio": mensaje["medio"] if ("medio" in mensaje) else "",
             "starting_time": starting_time.strftime("%Y-%m-%d %H:%M:%S"),
             "finishing_time": finishing_time.strftime("%Y-%m-%d %H:%M:%S"),
             "duration_ms": int((finishing_time - starting_time).total_seconds() * 1000),

@@ -1,103 +1,3 @@
-import pika, json
-from datetime import datetime as dtime
-
-PLANNER_QUEUE = "planner_queue"
-SCRAPER_QUEUE = "scraper_queue"
-ERROR_QUEUE   = "error_queue"
-SEND_DATA_QUEUE = "send_data_queue"
-
-# --- bloque para la conexion global de RabbitMQ ---
-connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-planner_channel = connection.channel()
-
-# --- declaración de colas ---
-for q in [PLANNER_QUEUE, SCRAPER_QUEUE, ERROR_QUEUE, SEND_DATA_QUEUE]:
-    planner_channel.queue_declare(queue=q, durable=True)
-''' IMPORTANTE: "durable=True" hace que las colas se guarden en disco, osea,
-                las colas vuelven estar disponibles automaticamente luego
-                de un reinicio. '''
-
-def callback(ch, method, properties, body):
-    starting_time = dtime.now().timestamp()
-    try:
-        message = json.loads(body)
-
-        # --- si no existe algún comando, mandamos error ---
-        if "cmd" not in message:
-            error_msg = {}
-            planner_channel.basic_publish(
-                exchange='',
-                routing_key=ERROR_QUEUE,
-                body=json.dumps(error_msg), # --- mensaje en formato JSON ---
-                properties=pika.BasicProperties(
-                    delivery_mode=2
-                )
-            )
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            return
-
-        query = message["cmd"]
-        # --- distintos comandos ---
-        if query=="scrape!":
-            try:
-                # --- creamos el mensaje -- 
-                scraper_msg = {
-                    "url": message["url"],
-                    "tag": message["tag"]
-                }
-                # --- publicación del mensaje ---
-                planner_channel.basic_publish(
-                    exchange='',
-                    routing_key=SCRAPER_QUEUE,
-                    body=json.dumps(scraper_msg), # mensaje en formato JSON
-                    properties=pika.BasicProperties(
-                        delivery_mode=2
-                    )
-                )
-                ''' "delivery_mode=2" hace que el mensaje se guarde en
-                    disco, osea, los mensajes también se guarden en disco. '''
-            except Exception as e:
-                print("NOTIFICAR QUE EL SCRAPPER FALLO A LA COLA DE ERRORES")
-
-        # --- se borra el mensaje de la cola ---
-        ch.basic_ack(delivery_tag=method.delivery_tag)
-
-    # --- el planner falló, notificar a la cola de errores ---
-    except Exception as e:
-        finishing_time = dtime.now().timestamp()
-        error_msg = {
-            "url": message["url"],
-            "medio": message["medio"],
-            "starting_time": starting_time,
-            "finishing_time": finishing_time,
-            "duration_ms": int((finishing_time-starting_time)*1000),
-            "status": "FAILED",
-            "error": str(e)
-        }
-        planner_channel.basic_publish(
-            exchange='',
-            routing_key=ERROR_QUEUE,
-            body=json.dumps(error_msg), # --- mensaje en formato JSON ---
-            properties=pika.BasicProperties(
-                delivery_mode=2
-            )
-        )
-
-# --- el planner consume los mensajes de su cola ---
-planner_channel.basic_qos(prefetch_count=1)
-planner_channel.basic_consume(queue=PLANNER_QUEUE, on_message_callback=callback)
-planner_channel.start_consuming()
-
-#''' (verificar quien me da esta data, y que data me entregará)
-#Se asume que el planner recibe un json con el siguiente formato:
-#    {
-#        "cmd": comando a ejecutar
-#        "medio": el medio de la pág. a screapear
-#        "url": url de la pág. a scrapear
-#        "tag": tag de la noticia a screapear (cmd = "scrape!")
-#    }
-#'''
-
 ''' --- ACLARADO ---
 El formato json que recibe el sistema de logs y errores (desde scraper al parecer):
     {
@@ -135,4 +35,28 @@ El formato json que recibe el sistema de logs y errores (desde scraper al parece
 9. Scheduler NO notifica a "envio de datos", solamente a log de errores, y si
     algún scrap funciona bien, se notifica a travéz de un mensaje desde el scrapper 
     directamente.
+'''
+
+'''
+Secuencia:
+
+Scheduler se inicia manualmente con un medio el cual es recibido por argumento, este scheduler
+invoca distintos modulos del "diagrama de modulos", un crawler, un send_datos, un scrapper, y un
+logger_errores, estos excepto el crawler, están a la espera de mensajes en sus respectivas colas, mientras
+el crawler es el encargado de ir señalando al scrapper que debe scrapear.
+
+El crawler cuando es invocado con un medio, crawlea este en particular y envia mensajes a la cola 
+del scrapper para que este lo pueda procesar. Una vez terminado todos los scrapeos, el crawler
+guarda métricas en crawler_metrics.json
+
+El Scrapper escucha constantemente mensajes en su cola, los cuales deben contener:
+{
+    "url": url_bonita :D
+    "tags": tags_exóticas :D
+}
+con esta información desde la cola, la recibe y screapea esta pagina, cuando hay un error lo manda a log,
+pero si lo hace bien, lo manda a log y además tambien manda un mensaje a send_queue con la data del screpeo.
+
+El send_data solo imprime lo que le llega.
+
 '''

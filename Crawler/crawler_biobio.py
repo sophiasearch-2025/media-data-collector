@@ -27,29 +27,31 @@ SITES = {
 }
 
 SCRAPER_QUEUE = "scraper_queue"
-ERROR_QUEUE = "error_queue"
-SEND_DATA_QUEUE = "send_data_queue"
+LOG_QUEUE = "log_queue"
 
 # Conectar con RabbitMQ
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
-
 # Abrir un canal de conexión con RabbitMQ
 crawler_channel = connection.channel()
+# declarar el canal
+for q in [SCRAPER_QUEUE, LOG_QUEUE]:
+    crawler_channel.queue_declare(queue=q, durable=True)
 
 def send_link (link, tags):
     message = {
-        "link":link,
+        "url":link,
         "tags":tags,
     }
-
     # Enviar el mensaje al componente de scrapping
     crawler_channel.basic_publish(
-        exchange="",
+        exchange='',
         routing_key = SCRAPER_QUEUE,
         body = json.dumps(message),
-        properties = pika.BasicProperties(delivery_mode = 2)
+        properties = pika.BasicProperties(
+            delivery_mode = 2
+        )
     )
-
+    print("Mensaje enviado hacia scraper desde crawler...")
 
 # Función para bloquear recursos al buscar links de noticias desde una página con botón "Cargar más"
 async def _block_assets(page):
