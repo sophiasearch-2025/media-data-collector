@@ -231,12 +231,14 @@ async def crawl_news(site_config, category_links):
                 categoria = get_category(link, slug)
 
                 # Envia link y categoria a Scrapper
-                send_link(link, categoria)
+                # send_link(link, categoria)
 
                 news.add((categoria, link))
 
         await browser.close()
-    
+
+    for tag, new in news:
+        send_link(new, tag)
     return news
 
 
