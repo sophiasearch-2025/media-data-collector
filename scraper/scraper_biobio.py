@@ -253,12 +253,11 @@ def consume_article(ch, method, properties, body):
             properties = pika.BasicProperties(delivery_mode = 2)
         )
 
-    # Acknowledge
+    # --- acknowledge ---
     ch.basic_ack(delivery_tag = method.delivery_tag)
 
 
 def main():
-    scraper_channel.basic_qos(prefetch_count = 1)
     scraper_channel.basic_consume(queue = SCRAPER_QUEUE, on_message_callback = consume_article)
     scraper_channel.start_consuming()
 

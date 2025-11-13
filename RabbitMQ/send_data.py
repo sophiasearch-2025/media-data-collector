@@ -19,7 +19,6 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag) 
 
 # --- el planner consume los mensajes de su cola ---
-planner_channel.basic_qos(prefetch_count=1)
 planner_channel.basic_consume(queue=SEND_DATA_QUEUE, on_message_callback=callback)
 print("Escuchando en send_data_queue...")
 planner_channel.start_consuming()   
