@@ -2,6 +2,58 @@
 
 Este módulo implementa un sistema centralizado de logging usando RabbitMQ como bróker de mensajes y Redis como sistema de almacenamiento temporal de logs. De este modo, se desacoplan los procesos de scraping/crawling/scheduling del proceso responsable de registrar logs.
 
+## Formato general de logs:
+Cada entrada log registra un atributo "id_logging_process" como identificador de la tanda de logging. **Para los logs de scraping_results, crawler_errors y scheduler_errors:** Este campo es adicional, es decir, es agregado como atributo por el logger después de recoger el mensaje json desde RabbitMQ y antes de anexarlo a la lista de entradas en Redis. El valor es generado al inicio del proceso logger y se mantiene constante hasta su finalización. De esta forma, todas las entradas escritas por el mismo proceso logger tendrán el mismo número identificador.
+#### logs scraping_results en Redis
+Registran éxito/error por cada URL scrapeada.
+```json
+{
+  "url": "...",
+  "medio": "...",
+  "starting_time": "YYYY-MM-DD HH:MM:SS",
+  "status": "success" | "error",
+  "finishing_time": "YYYY-MM-DD HH:MM:SS",
+  "duration_ms": "123.45",
+  "error": "" | "detalle del error si lo hubo",
+  "id_logging_process": 1763159118
+}
+```
+#### logs en crawler_errors
+Registra solo errores del crawler.
+```json
+{
+  "from": "crawler"
+  "arg_medio": "...",
+  "error_timestamp": "YYYY-MM-DD HH:MM:SS",
+  "stage": "etapa donde falló",
+  "error_detail": "detalle del error",
+  "id_logging_process": 1763159118
+}
+```
+
+#### logs en scheduler_errors
+Registra solo errores del scheduler.
+```json
+{
+  "from": "scheduler",
+  "arg_medio": "...",
+  "error_timestamp": "YYYY-MM-DD HH:MM:SS",
+  "stage": "etapa donde falló",
+  "error_detail": "detalle del error",
+  "id_logging_process": 1763159118
+}
+```
+
+#### logs en logging_control
+Registra `start_batch` que indica el inicio de la tanda, `end_batch_received` como señalizador para terminar la tanda y `end_batch_completed` cuando la tanda se concluye y se cierran los canales desde el logger.
+```json
+{
+  "id_logging_process": 12345678,
+  "action": "start_batch",
+  "timestamp": "YYYY-MM-DD HH:MM:SS"
+}
+```
+
 ---
 
 ## Componentes .py
@@ -205,6 +257,8 @@ Al recibir la señal de cierre, el logger:
   "timestamp": "YYYY-MM-DD HH:MM:SS"
 }
 ```
+
+---
 
 ## Ciclo de vida de una tanda o batch de logging
 
