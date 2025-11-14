@@ -4,7 +4,7 @@ Este módulo implementa un sistema centralizado de logging usando RabbitMQ como 
 
 ---
 
-# Componentes .py
+## Componentes .py
 
 | Componente             | Rol                                                                           |
 | ---------------------- | ----------------------------------------------------------------------------- |
@@ -14,9 +14,8 @@ Este módulo implementa un sistema centralizado de logging usando RabbitMQ como 
 | **queue_sender_logger_ctrl.py**  | Módulo utilizado por scheduler para controlar (iniciar y señalizar término) del proceso logger. Este control también es loggeado.         |
 | **queue_sender_scraper_results.py**  | Módulo utilizado por el scraper para enviar al logger los logs de éxito/error de cada URL scrapeada.         |
 
----
 
-# Flujo de funcionamiento
+## Flujo de funcionamiento
 
 1. El proceso logger se inicializa con el scheduler, quien registra un log `start_batch` en `logging_control_queue` por medio de `queue_sender_logger_ctrl`.
 2. Mientras se ejecuta el sistema, un componente (crawler o scheduler) captura un error propio, o bien, el scraper scrapea una URL específica con éxito/error.
@@ -25,49 +24,45 @@ Este módulo implementa un sistema centralizado de logging usando RabbitMQ como 
     * `queue_sender_scraper_results.py`
 4. RabbitMQ encola estos mensajes en su cola correspondiente.
 5. El proceso `logger.py` está consumiendo las colas:
-  * `crawler_log_queue`
-  * `scheduler_log_queue`
-  * `scraping_log_queue`
-  * `logging_control_queue`
+     * `crawler_log_queue`
+     * `scheduler_log_queue`
+     * `scraping_log_queue`
+     * `logging_control_queue`
 6. Por cada mensaje:
-  * Se asigna id_logging_process
-  * Se guarda el log en Redis mediante `logs_operations.py`
+     * Se asigna id_logging_process
+     * Se guarda el log en Redis mediante `logs_operations.py`
 7. Cuando se recibe la señal `end_batch_received` en `logging_control_queue`, el logger:
-  * Espera que las colas queden vacías
-  * Deja de consumir colas.
-  * Registra `end_batch_completed` en la misma cola `logging_control_queue`.
-  * Se cierra ordenadamente.
+     * Espera que las colas queden vacías
+     * Deja de consumir colas.
+     * Registra `end_batch_completed` en la misma cola `logging_control_queue`.
+     * Se cierra ordenadamente.
   
---- 
-  
-# Dependencias
+## Dependencias
 
-### Python
+#### Python
 
 * `redis`
 * `pika`
 * `json`
 * `argparse`
 
-### Módulos internos del repositorio
+#### Módulos internos del repositorio
 
 * `utils.rabbitmq_utils`
 * `utils.redis_utils`
 
-### Infraestructura
+#### Infraestructura
 
 * **Redis** (para guardar logs)
 * **RabbitMQ** (para comunicación asíncrona)
 
 ---
 
-# Módulos de logging
+## Módulos de logging
 
 Estos módulos del proceso involucran la manipulación de las entradas logs almacenadas temporalmente en Redis, en función de lo que se consume desde las colas de RabbitMQ.
 
----
-
-## Módulo `logger.py`
+#### Módulo `logger.py`
 
 Es el **proceso principal de logging**. Hace lo siguiente:
 * Abre conexión a RabbitMQ.
@@ -91,26 +86,24 @@ Es el **proceso principal de logging**. Hace lo siguiente:
   * Inserta `end_batch_completed` en Redis a la lista logging_control
   * Cierra la conexión
 
----
-
-## Módulo `logs_operations.py`
+#### Módulo `logs_operations.py`
 
 Módulo "abstraído" para realizar operaciones sobre las listas de logs en Redis.
 
-### Funciones:
+##### Funciones:
 
-#### `anexar_log(log_data, list_name)`
+###### `anexar_log(log_data, list_name)`
 * Realiza sobre Redis:
   ```
   LPUSH list_name json.dumps(log_data)
   ```
 * Maneja errores de Redis.
 
-#### `clear_logs_list(list_name)`
+###### `clear_logs_list(list_name)`
 * Ejecuta `DEL list_name` para limpiar listas al iniciar un batch.
 
-### Listas en Redis:
-Donde las listas almacenadas en Redis son las siguientes:
+#### Listas en Redis:
+Para este proceso, las listas almacenadas en Redis son las siguientes:
 
 | Lista Redis        | Contenido                                |
 | ------------------ | ---------------------------------------- |
@@ -119,23 +112,21 @@ Donde las listas almacenadas en Redis son las siguientes:
 | `scraping_results` | Resultados individuales de scraping.     |
 | `logging_control`  | Señales internas de control del proceso. |
 
----
 
-# Módulos emisores
+## Módulos emisores
 
 No tocan directamente a Redis y, por lo tanto, no interactúan con los logs. Usan RabbitMQ para evitar bloquearse entre ellos y para que el logger pueda escucharlos ordenadamente. Cada módulo declara su cola y publica mensajes JSON.
 
----
 
-## Módulo `queue_sender_generic_error.py`
+#### Módulo `queue_sender_generic_error.py`
 Usado tanto por **crawler** como por **scheduler**. Estos componentes solo registran errores en su ejecución, de haberlos.
 
-### Colas declaradas/utilizadas:
+##### Colas declaradas/utilizadas:
 
 * `"crawler_log_queue"` para los errores enviados por el crawler
 * `"scheduler_log_queue"` para los errores enviados por el scheduler
 
-### Formato del mensaje:
+##### Formato del mensaje:
 
 ```json
 {
@@ -147,17 +138,15 @@ Usado tanto por **crawler** como por **scheduler**. Estos componentes solo regis
 }
 ```
 
----
-
-## Módulo `queue_sender_scraper_results.py`
+#### Módulo `queue_sender_scraper_results.py`
 
 Emisor de resultados del scraper.
 
-### Cola:
+##### Cola:
 
 * `"scraping_log_queue"`
 
-### Formato:
+##### Formato:
 
 ```json
 {
@@ -171,19 +160,17 @@ Emisor de resultados del scraper.
 }
 ```
 
----
-
-## Módulo `queue_sender_logger_ctrl.py`
+#### Módulo `queue_sender_logger_ctrl.py`
 
 Se usa para coordinar la vida del proceso `logger`.
 
-### Cola:
+##### Cola:
 
 * `"logging_control_queue"`
 
-### Mensajes posibles:
+##### Mensajes posibles:
 
-#### Inicio de tanda:
+###### Inicio de tanda:
 
 ```json
 {
@@ -194,7 +181,7 @@ Se usa para coordinar la vida del proceso `logger`.
 ```
 El inicio de la tanda hace que el logger limpie las listas Redis de logs previos.
 
-#### Señal de cierre:
+###### Señal de cierre:
 
 ```json
 {
@@ -209,7 +196,7 @@ Al recibir la señal de cierre, el logger:
 * Para de consumir
 * Y registra un último mensaje en Redis
 
-#### Mensaje generado por el logger al final:
+###### Mensaje generado por el logger al final:
 
 ```json
 {
@@ -219,9 +206,7 @@ Al recibir la señal de cierre, el logger:
 }
 ```
 
----
-
-# Ciclo de vida de una tanda o batch de logging
+## Ciclo de vida de una tanda o batch de logging
 
 1. `start_batch`. Se limpian los logs previos en Redis.
 2. Se ejecutan scheduler/crawler/scraper. Mandan logs a RabbitMQ.
