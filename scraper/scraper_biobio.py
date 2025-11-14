@@ -269,7 +269,7 @@ def consume_article(ch, method, properties, body):
             url,
             mensaje["medio"] if ("medio" in mensaje) else "",
             starting_time,
-            "success",
+            "error",
             finishing_time,
             str(e),
         )

@@ -2,7 +2,7 @@ import sys
 import pika
 import subprocess
 from datetime import datetime as dtime
-from ..logger.queue_sender_generic_error import error_send
+from logger.queue_sender_generic_error import error_send
 
 # --- colas a preparar ---
 LOG_QUEUE = "scheduler_log_queue"
@@ -28,7 +28,7 @@ def proceso_scrapper(n):
 def proceso_crawler(medio):
     # --- crear listener del crawler ---
     crawl_process = subprocess.Popen(
-        ["python", "Crawler/crawler_biobio.py", medio]
+        ["python", "Crawler/crawler.py", medio]
     )
     # --- se esperan a los procesos para continuar ---
     crawl_process.wait()
@@ -36,6 +36,7 @@ def proceso_crawler(medio):
 def main():
     # --- crear listener del logger inicialmente (prioritario) ---
     subprocess.Popen(["python", "-m", "logger.logger"])
+    
     # --- se recibe el medio el cual se quiere crawlear por argumento ---
     if len(sys.argv) != 3:
         print("Se debe ejecutar con ./scheduler.py <medio> <cantidad_de_scrappers>")
