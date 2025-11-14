@@ -223,13 +223,9 @@ Al recibir la señal de cierre, el logger:
 
 # Ciclo de vida de una tanda o batch de logging
 
-1. `start_batch`
-  * Se limpian los logs previos en Redis.
-2. Se ejecutan scheduler/crawler/scraper
-  * Mandan logs a RabbitMQ.
+1. `start_batch`. Se limpian los logs previos en Redis.
+2. Se ejecutan scheduler/crawler/scraper. Mandan logs a RabbitMQ.
 3. El logger recibe y guarda todo en Redis.
-4. Scheduler emite `end_batch_received` tras esperar el crawler
-  * El logger espera a que llegue todo para dejar de consumir
-5. Colas vacías
-  * El logger deja de consumir y guarda `end_batch_completed` en Redis.
+4. Scheduler emite `end_batch_received` tras esperar el crawler. El logger espera a que llegue todo para dejar de consumir
+5. Colas vacías. El logger deja de consumir y guarda `end_batch_completed` en Redis.
 6. El logger se cierra.
