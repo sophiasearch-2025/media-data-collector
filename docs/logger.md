@@ -21,8 +21,8 @@ Este módulo implementa un sistema centralizado de logging usando RabbitMQ como 
 1. El proceso logger se inicializa con el scheduler, quien registra un log `start_batch` en `logging_control_queue` por medio de `queue_sender_logger_ctrl`.
 2. Mientras se ejecuta el sistema, un componente (crawler o scheduler) captura un error propio, o bien, el scraper scrapea una URL específica con éxito/error.
 3. Envía un mensaje al logger mediante alguno de:
-  * `queue_sender_generic_error.py`
-  * `queue_sender_scraper_results.py`
+    * `queue_sender_generic_error.py`
+    * `queue_sender_scraper_results.py`
 4. RabbitMQ encola estos mensajes en su cola correspondiente.
 5. El proceso `logger.py` está consumiendo las colas:
   * `crawler_log_queue`
