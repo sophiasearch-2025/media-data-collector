@@ -16,7 +16,8 @@ seen_links = set()
 # Función para bloquear recursos al buscar links de noticias desde una página con botón "Cargar más"
 async def _block_assets(page):
     '''
-    Función para bloquear recursos al buscar links de noticias desde una página con botón "cargar más noticias"
+    Función para bloquear recursos al buscar links de noticias
+    desde una página con botón "cargar más noticias"
     '''
     async def handler(route):
         req = route.request
@@ -79,8 +80,8 @@ def get_category(link, slug):
 
 async def scrape_category_loadmore(page, category_url, load_more_selector, news_pattern, max_clicks=10):
     '''
-    Crawl de la página de categorías con la modalidad "loadmore", es decir, página de categoría que
-    posee un botón de "cargar más noticias".
+    Crawl de la página de categorías con la modalidad "loadmore", es decir,
+    página de categoría que posee un botón de "cargar más noticias".
     '''
     news_links = set()
     try:
@@ -115,7 +116,8 @@ async def scrape_category_loadmore(page, category_url, load_more_selector, news_
 
 async def crawl_categories(site_config):
     '''
-    Crawl de las categorías de noticias de la página
+    Función que Crawl de las categorías de noticias de la página,
+    entrega set de links de categorías encontradas
     '''
     start_url = site_config["start_url"]
     category_pattern = site_config["category_pattern"]
@@ -150,7 +152,9 @@ async def crawl_categories(site_config):
 
 async def crawl_news(site_config, category_links):
     '''
-    Crawl de los links de noticias de cada categoría
+    Crawl de los links de noticias de cada categoría,
+    entrega set de tuplas de links de noticias y sus tags de
+    categorías encontradas.
     '''
     start_url = site_config["start_url"]
     news_pattern = site_config["news_pattern"]

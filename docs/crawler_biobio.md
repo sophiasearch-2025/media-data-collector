@@ -15,6 +15,7 @@
 - Python 3.10+, virtualenv con dependencias:
   - playwright
   - beautifulsoup4
+  - asyncio
   - pika
 - RabbitMQ corriendo localmente (por defecto `localhost`).
 
@@ -47,31 +48,41 @@ SITES = {
 - `max_clicks`: Cantidad máxima de clicks en botones de "cargar más noticias" o número páginas a cargar en caso de paginación (2 para esta prueba).
 
 ## Funcionamiento
+* `crawler.py`: 
+    - Recibe nombre de medio que se desea scrapear, configuración de cómo obtener links de noticias de este medio guardados en diccionario `SITES`.
+    - Llama a funciones en `crawler_biobio.py` para obtener los links de noticias.
+    - Al final escribe `Crawler/{medio}.csv` y `metrics/crawler_metrics.json`.
+
 * `crawler_biobio.py`:
     1. `crawl_categories(config)`: 
         - Navega la home y devuelve un set de URLs de categoría.
     2. `crawl_news(config, category_list)`:
-        - Por cada categoría usa `scrape_category_loadmore` para cargar items (clicks),
-        - Extrae hrefs que coinciden con `news_pattern`,
-        - Extrae la categoría real de cada link con reglas (ver “Extracción de categoría”),
-        - Publica inmediatamente el link a RabbitMQ (si no fue enviado antes),
+        - Por cada categoría usa `scrape_category_loadmore` para cargar items (clicks).
+        - Extrae hrefs que coinciden con `news_pattern`.
+        - Extrae la categoría real de cada link con reglas (ver “Extracción de categoría”).
+        - Llama a funciones en `crawler_sender.py` para publicar inmediatamente el link a RabbitMQ (si no fue enviado antes).
         - Acumula en `all_news` para métricas y CSV.
-* Al final escribe `Crawler/{medio}.csv` y `metrics/crawler_metrics.json`.
+* `crawler_sender.py`
+    1. `send_link(link, tags)`:
+        - Envía mensaje a cola de scrapper con link de noticia y sus tags de categorías.
+    2. `error_send(link, e, stage)`:
+        - Envia mensaje de error a cola de LOG con link de medio donde falló, error y etapa del proceso de crawler donde falló.
 
 ## Funciones principales
-- async crawl_categories(site_config) -> set[str]  
+- `async crawl_categories(site_config) -> set[str]`:
   Navega `start_url`, parsea enlaces y retorna URLs que contienen `category_pattern`. Maneja timeouts y cierra el navegador si falla.
 
-- async scrape_category_loadmore(page, category_url, load_more_selector, news_pattern, max_clicks=10) -> set[str]  
-  Abre la categoría, hace hasta `max_clicks` clicks en el botón `load_more_selector`, parsea HTML y retorna set de links de noticias (absolutos).
+- ``async scrape_category_loadmore(page, category_url, load_more_selector, news_pattern, max_clicks=10) -> set[str]``: 
+  Abre la categoría, hace hasta `max_clicks` clicks en el botón `load_more_selector`, parsea HTML y retorna set de links de noticias.
 
-- async crawl_news(site_config, category_links) -> set[tuple(str categoria, str link)]  
+- ``async crawl_news(site_config, category_links) -> set[tuple(str categoria, str link)] ``:
   Itera `category_links`, obtiene links por categoría, normaliza categoría y publica a RabbitMQ (función `send_link`).
 
 ## Helpers y utilidades
-- _block_assets(page): bloquea recursos pesados (imágenes, css, fonts, media) para acelerar navegación.
-- get_category(link, slug) -> str: extrae hasta 3 niveles de categoría desde `/noticias/` o `/especial/`, detiene si encuentra un año (4 dígitos), elimina el segmento redundante `noticias`, y mapea rutas `biobiochile/noticias-patrocinadas/...` a `noticias-patrocinadas`.
-- send_link(link, tags): publica JSON a la cola `scraper_queue`. Usa `pika.BlockingConnection` y `crawler_channel.basic_publish`.
+- ``block_assets(page)``: bloquea recursos pesados (imágenes, css, fonts, media) para acelerar navegación.
+- ``get_category(link, slug) -> str:`` extrae hasta 3 niveles de categoría desde `/noticias/` o `/especial/`, detiene si encuentra un año (4 dígitos), elimina el segmento redundante `noticias`, y mapea rutas `biobiochile/noticias-patrocinadas/...` a `noticias-patrocinadas`.
+
+- ``send_link(link, tags)``: publica JSON a la cola `scraper_queue`. Usa `pika.BlockingConnection` y `crawler_channel.basic_publish`.
 
 ## Salida / artefactos
 - CSV: `Crawler/biobiochile.csv` — filas: categoria, url
@@ -79,22 +90,41 @@ SITES = {
   - sitio, total_categorias, total_urls_encontradas, urls_por_categoria, duracion_segundos, urls_por_minuto
 
 ## Timeouts y rendimiento
-- Constantes configurables:
-  - GOTO_TIMEOUT_START = 15000 (ms)
-  - GOTO_TIMEOUT_CATEGORY = 15000 (ms)
-  - SHORT_WAIT = 500 (ms)
-  - CLICK_WAIT = 500 (ms)
-- Recomendación: si hay timeouts frecuentes, subir GOTO_TIMEOUT_CATEGORY a 20_000 ms o añadir reintentos; bloquear assets acelera mucho.
+- Constantes configurables (en ms):
+```python
+  GOTO_TIMEOUT_START = 15000
+  GOTO_TIMEOUT_CATEGORY = 15000
+  SHORT_WAIT = 500
+  CLICK_WAIT = 500
+```
+- Recomendación: si hay timeouts frecuentes, subir GOTO_TIMEOUT_CATEGORY a 20000 ms o añadir reintentos; bloquear assets acelera mucho.
 
-## Errores y robustez
+## Errores
+- Key Error al inicio del programa si sitio que se desea scrapear no está en el diccionario de medios ingresados.
+
 - Timeouts en `goto` se atrapan y provocan retorno de set vacío para esa navegación (no abortan todo).
-- Deduplicado en ejecución: `seen_links` evita reenvíos al scrapper dentro del mismo run.
-- Limitación: `seen_links` es volátil (no persiste entre runs). Para persistencia usar sqlite/redis/file si se requiere idempotencia entre ejecuciones.
 
 ## Integración RabbitMQ
-- Cola producida: `scraper_queue` (mensajes JSON: {"url":..., "tags": ...}).
-- Cola de logs: `log_queue` (opcional).
-- Scheduler debe ejecutarse desde la raíz del proyecto para resolver rutas relativas, o usar el scheduler parcheado que usa rutas absolutas.
+
+- `scraper_queue`: Cola de mensajes RabbitMQ para que el scrapper inicie su trabajo. El mensaje tiene la siguiente estructura: 
+```json
+{
+  "url": string, 
+  "tags": string
+}
+```
+
+- `crawler_log_queue`: Cola de mensajes mensaje RabbitMQ de Log de errores del crawler. El mensaje tiene la siguiente estructura:
+
+```JSON
+{
+  "origen": string,
+  "error_timestamp": datetime,
+  "error_detail": string,
+  "arg_medio": string,
+  "etapa": string
+}
+```
 
 ## Ejemplos de uso
 
@@ -113,12 +143,4 @@ python -u Crawler/crawler_biobio.py biobiochile
 
 - Si la web genera enlaces vía JS que necesitan estilos o scripts complejos, bloquear assets puede omitir enlaces. En ese caso desactivar `_block_assets` para esa categoría.
 
-- Dedupe solo en memoria: reinicios provocan reenvío de links previos.
-
-## Testing
-- Para tests unitarios, mockear Playwright y `scrape_category_loadmore` / `crawl_categories` y verificar:
-  - llamadas a `send_link`
-  - escritura del CSV
-  - formato de categorías extraídas por `get_category`
-
-- Logs estándar: impresiones por stdout (útiles cuando `PYTHONUNBUFFERED=1`).
+- Set links enviados solo en memoria: reinicios provocan reenvío de links previos.
