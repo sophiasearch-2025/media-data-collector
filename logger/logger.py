@@ -74,9 +74,6 @@ def callback_control(id_logging_process: int, state):
             # Cambia estado interno
             state["terminating"] = True
 
-            # Detiene el consumo
-            ch.stop_consuming()
-
         logs_operations.anexar_log(msg, LOGGER_CTRL)
 
         ch.basic_ack(delivery_tag=method.delivery_tag)
