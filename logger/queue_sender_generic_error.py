@@ -1,7 +1,10 @@
-from datetime import datetime
-import pika
-import utils.rabbitmq_utils as rabbit
 import json
+from datetime import datetime
+
+import pika
+from pika.exceptions import AMQPChannelError  # pyright me tira error sin esto xd
+
+import utils.rabbitmq_utils as rabbit
 
 """
 crawler_log_queue es exception-only:
@@ -79,10 +82,13 @@ def error_send(
 ):
     try:
         rabbit_channel = rabbit.get_rabbit_connection().channel()
-    except pika.exceptions.AMQPChannelError as e:
+    except AMQPChannelError as e:
         print("Error al establecer canal en RabbitMQ")
         raise RuntimeError(f"""Error de canal en RabbitMQ: {e}.
             No se pudo loggear error {error_detail}.""") from e
+
+    queue_name = ""
+    msg_to_enqueue = {}
 
     if origen not in ["scheduler", "crawler"]:
         raise RuntimeError(
