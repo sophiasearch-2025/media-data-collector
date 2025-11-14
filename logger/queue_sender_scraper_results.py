@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timedelta
 
 import pika
+from pika.exceptions import AMQPChannelError
 
 import utils.rabbitmq_utils as rabbit
 
@@ -44,7 +45,7 @@ def scraping_batch_send(msg_scraping_id: int, msg_action: str):
 
     try:
         rabbit_channel = rabbit.get_rabbit_connection().channel()
-    except pika.exceptions.AMQPChannelError as e:
+    except AMQPChannelError as e:
         print("Error al establecer canal en RabbitMQ")
         raise RuntimeError(f"Error de canal en RabbitMQ: {e}") from e
 
@@ -76,7 +77,7 @@ def scraping_results_send(
 ):
     try:
         rabbit_channel = rabbit.get_rabbit_connection().channel()
-    except pika.exceptions.AMQPChannelError as e:
+    except AMQPChannelError as e:
         print("Error al establecer canal en RabbitMQ")
         raise RuntimeError(f"Error de canal en RabbitMQ: {e}") from e
 
@@ -91,12 +92,14 @@ def scraping_results_send(
         duration = finishing_time - starting_time
         duration_ms = duration / timedelta(milliseconds=1)
         results_msg["finishing_time"] = finishing_time.strftime("%Y-%m-%d %H:%M:%S")
-        results_msg["duration_ms"] = duration_ms
-        results_msg["error"] = error
-
+        results_msg["duration_ms"] = str(duration_ms)
     else:
         results_msg["finishing_time"] = ""
         results_msg["duration_ms"] = ""
+
+    if error is None:
+        results_msg["error"] = ""
+    else:
         results_msg["error"] = error
 
     body_msg = {"type": "result", "data": results_msg}
