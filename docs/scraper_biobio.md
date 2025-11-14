@@ -4,10 +4,8 @@ El script `scraper_biobio.py` implementa la función `scrap_news_article(url, ta
 
 ```json
 {
-    "url": string,
     "titulo": string,
     "fecha": string,
-    "tags": list[string],
     "autor": string,
     "desc_autor": string,
     "abstract": string,
@@ -45,30 +43,78 @@ Recorre selectores de contenido para construir el cuerpo completo del artículo.
 Devuelve un texto unificado con saltos de línea.
 
 ## Función principal `scrap_news_article(url, tags)`
-Realiza el scraping completo de una noticia individual. El output de esta función es el que se encuentra arriba en el documento. Esta función puede devolver tanto un diccionario de python como un `None`, dependiendo de los parámetros y el output.
+Realiza el scraping completo de una noticia individual. El output de esta función es el que se encuentra arriba en el documento. Esta función puede devolver tanto un diccionario de python como una `lista con los elementos de la noticia faltantes`, dependiendo de los parámetros y el output.
 
 Parámetros
 - `url` _(str)_: Dirección URL del artículo a scrapear.
-- `tags`_(list[str])_: Lista de etiquetas o categorías del artículo.
 - `validate`_(bool, opcional)_: Si es True, la función devolverá un None si el output no cuenta con parámetros obligatorios _(Estos siendo: título, fecha y cuerpo)_
 
+## Función integradora a RabbitMQ `consume_article()`
+Esta función actúa como `callback` para _RabbitMQ_, es decir, se ejecuta automáticamente cada vez que llega un mensaje a la cola `scraper_queue`, definida en la cabecera del script.
+
+Su rol es:
+1. Leer el mensaje entregado desde el crawler y extraer la `url` de la noticia a scrapear.
+
+2. Llamar a la función `scrap_news_article(url, validate = True)`, la cual entregará toda la información del artículo.
+
+3. Enviar un log a la cola `scraping_log_queue` de la forma:
+
+```python
+scraping_results_send(
+    url: str,
+    medio: str,
+    starting_time: datetime,
+    status: str,  # success or error
+    finishing_time: datetime | None = None,
+    error: str | None = None,
+)
+```
+
+4. Por último enviar un mensaje a la cola `scraper_queue` con los resultados de la operación.
+```python
+# --- mensaje para send_data ---
+send_data_msg = scraper_results
+send_data_msg["url"] = url
+# --- publicar mensaje hacia send_data ---
+scraper_channel.basic_publish(
+    exchange="",
+    routing_key=SEND_DATA_QUEUE,
+    body=json.dumps(send_data_msg),
+    properties=pika.BasicProperties(delivery_mode=2),
+)
+```
+
+Mensaje el cual contiene la siguiente información:
+
+```json
+{
+    "url": string,       | Entregados por
+    "tags": string,      | el crawler
+    "titulo": string,
+    "fecha": string,
+    "autor": string,
+    "desc_autor": string,
+    "abstract": string,
+    "cuerpo": string,
+    "multimedia": list[string],
+    "tipo_multimedia": string
+}
+```
+
 ## Tests de scraping dada una URL
-Se define una función `main()` para realizar tests de scraping a una URL en específico. Para usarla debe colocar la URL a scrapear en la variable `test_url` y debe ejecutar el script:
+Se define una función `test()` para realizar tests de scraping a una URL en específico. Para usarla debe colocar la URL a scrapear en la variable `test_url` y debe ejecutar el script:
 ```bash
 python scraper/scraper_biobio.py
 ```
 A continuación, se imprimirá en la consola el output del scraping realizado.
-
-NOTA: El output no contendrá los tags puesto que estos se extraen desde el output del crawler.
 
 ## Integración
 Si se desea integrar la función a otro script dentro del proyecto, se puede importar la función directamente:
 ```python
 from scraper.scraper_biobio import scrap_news_article
 
-doc = scrap_news_article(
+result = scrap_news_article(
     "https://www.biobiochile.cl/...", 
-    ["servicios", "2025"],
     validate = True
 )
 ```
@@ -116,7 +162,7 @@ extract_multimedia(soup, [
 
 Aquí se busca únicamente imágenes puesto que en _BioBio Chile_, el único multimedia que se encuentra en la página relacionado al archivo son imágenes.
 
-Si es que el scraper falla al llamarlo en el modo `validate`, es porque uno de los campos obligatorios _(título, fecha o cuerpo)_ está vacío. En este caso, se debe buscar en el HTML de la página el dato a scrapear, sus componentes padres, los classnames de cada uno respectivamente y añadirlo a la lista de búsqueda dentro del script.
+Si es que el scraper devuelve una lista al llamarlo en el modo `validate`, es porque uno de los campos obligatorios _(título, fecha o cuerpo, indicado en la lista)_ está vacío. En este caso, se debe buscar en el HTML de la página el dato a scrapear, sus componentes padres, los classnames de cada uno respectivamente y añadirlo a la lista de búsqueda dentro del script.
 
 - Ejemplo
 ```python

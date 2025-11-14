@@ -108,7 +108,8 @@ def extract_body(soup: BeautifulSoup, selectors: list, default: str = "") -> str
 def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     """
     Realiza el scraping completo de una noticia individual. Esta función puede devolver
-    tanto un diccionario de python como un None, dependiendo de los parámetros y el output.
+    tanto un diccionario de python como una lista con los elementos de la noticia faltantes,
+    dependiendo de los parámetros y el output.
     """
     invalid_args = ["Error, falta lo siguiente: "]
 
@@ -296,7 +297,7 @@ if __name__ == "__main__":
 
 def test():
     test_url = "https://www.biobiochile.cl/noticias/servicios/beneficios/2025/10/23/asi-funciona-el-beneficio-estrudiantil-que-cubre-mas-de-un-millon-de-pesos-del-arancel.shtml"
-    noticia = scrap_news_article(test_url, [])
+    noticia = scrap_news_article(test_url)
     if noticia:
         print(json.dumps(noticia, indent=3, ensure_ascii=False))
 
