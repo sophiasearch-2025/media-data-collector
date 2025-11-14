@@ -60,3 +60,10 @@ pero si lo hace bien, lo manda a log y además tambien manda un mensaje a send_q
 El send_data solo imprime lo que le llega.
 
 '''
+
+
+'''
+QUE FALTA???
+
+- que logger reciba sucess desde CRAWLER y SCHEDULER (AUNQUE SE CONCIDERA DIRECTAMENTE NO HACER NADA)
+'''

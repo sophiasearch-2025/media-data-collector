@@ -1,69 +1,63 @@
-import json
-import subprocess
 import sys
-from datetime import datetime as dtime
-
 import pika
+import subprocess
+from datetime import datetime as dtime
+from ..logger.queue_sender_generic_error import error_send
 
 # --- colas a preparar ---
-LOG_QUEUE = "log_queue"
-# --- medios disponibles ---
-medios = ["biobiochile"]
+LOG_QUEUE = "scheduler_log_queue"
 # --- bloque para la conexion global de RabbitMQ ---
 connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
 sche_channel = connection.channel()
 # --- declaración de la cola de error ---
 sche_channel.queue_declare(queue=LOG_QUEUE, durable=True)
 
+def proceso_send_datos():
+    # --- crear el listener de envio de datos ---
+    subprocess.Popen(
+        ["python", "RabbitMQ/send_data.py"]
+    )
+
+def proceso_scrapper(n):
+    # --- crear listener del scraper (el cual espera a mensajes de crawler) ---
+    for _ in n:
+        subprocess.Popen(
+            ["python", "scraper/scraper_biobio.py"]
+        )
+
+def proceso_crawler(medio):
+    # --- crear listener del crawler ---
+    crawl_process = subprocess.Popen(
+        ["python", "Crawler/crawler_biobio.py", medio]
+    )
+    # --- se esperan a los procesos para continuar ---
+    crawl_process.wait()
 
 def main():
     # --- crear listener del logger inicialmente (prioritario) ---
-    logger_process = subprocess.Popen(["python", "-m", "logger.logger"])
+    subprocess.Popen(["python", "-m", "logger.logger"])
     # --- se recibe el medio el cual se quiere crawlear por argumento ---
-    if len(sys.argv) != 2:
-        print("Se debe ejecutar con un solo argumento, y debe ser el nombre del medio.")
+    if len(sys.argv) != 3:
+        print("Se debe ejecutar con ./scheduler.py <medio> <cantidad_de_scrappers>")
     else:
+        # --- recuperamos el medio ---
+        medio = sys.argv[1]
+        n_scrapers = sys.argv[2]
         try:
-            # --- llamar al crawler con el medio ---
-            medio = sys.argv[1]
-            if medio not in medios:
-                print("No existe el medio ingresado")
-            else:
-                # --- crear el listener de envio de datos ---
-                send_datos_process = subprocess.Popen(
-                    ["python", "RabbitMQ/send_data.py"]
-                )
-                # --- crear listener del scraper (el cual espera a mensajes de crawler) ---
-                scrap_process = subprocess.Popen(
-                    ["python", "scraper/scraper_biobio.py"]
-                )
-                # # --- crear listener del crawler ---
-                crawl_process = subprocess.Popen(
-                    ["python", "Crawler/crawler_biobio.py", medio]
-                )
-                # --- se esperan a los procesos para continuar ---
-                # send_datos_process.wait()
-                # scrap_process.wait()
-                # logger_process.wait()
-                crawl_process.wait()
-
+            # --- llamamos los procesos ---
+            proceso_send_datos()
+            proceso_scrapper(n_scrapers)
+            proceso_crawler(medio)
         # --- FALLO DEL SCHEDULER ---
         except Exception as e:
-            # --- se genera el mensaje de error ---
-            error_msg = {
-                "starting_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "state": "error",
-                "error": str(e),
-                "from": "scheduler",
-            }
             # --- se envia el mensaje de error a "errores y logs" ---
-            sche_channel.basic_publish(
-                exchange="",
-                routing_key=LOG_QUEUE,
-                body=json.dumps(error_msg),  # --- mensaje en formato JSON ---
-                properties=pika.BasicProperties(delivery_mode=2),
+            error_send(
+                "scheduler", 
+                str(dtime.now().strftime("%Y-%m-%d %H:%M:%S")),
+                str(e),
+                medio,
+                "Fallo durante el llamado de algún proceso"
             )
-
 
 if "__main__" == __name__:
     main()

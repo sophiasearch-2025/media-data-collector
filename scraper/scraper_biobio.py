@@ -238,13 +238,6 @@ def consume_article(ch, method, properties, body):
 
         finishing_time = dtime.now()
 
-        # Añadir la duración del scraping al mensaje (*** ¿Necesario?)
-        mensaje["starting_time"] = starting_time.strftime("%Y-%m-%d %H:%M:%S")
-        mensaje["finishing_time"] = finishing_time.strftime("%Y-%m-%d %H:%M:%S")
-        mensaje["duration_ms"] = int(
-            (finishing_time - starting_time).total_seconds() * 1000
-        )
-        mensaje["status"] = "SUCCESS"
         # --- mensaje para logs ---
         # Envío desde scraping_resuls_send()
         scraping_results_send(

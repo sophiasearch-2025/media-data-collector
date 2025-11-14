@@ -1,7 +1,7 @@
 import pika, json
 from datetime import datetime as dtime
 
-# DE MOMENTO SOLO VERIFICAREMOS QUE LOS MENSAJES LLEGAN HASTA ENVIO DE DATOS
+# DE MOMENTO SOLO VERIFICAREMOS QUE LOS MENSAJES LLEGAN HASTA ENVIO DE DATOS (LOS IMPRIMIMOS)
 
 SEND_DATA_QUEUE = "send_data_queue"
 
@@ -19,6 +19,6 @@ def callback(ch, method, properties, body):
     ch.basic_ack(delivery_tag=method.delivery_tag) 
 
 # --- el planner consume los mensajes de su cola ---
-planner_channel.basic_consume(queue=SEND_DATA_QUEUE, on_message_callback=callback)
 print("Escuchando en send_data_queue...")
-planner_channel.start_consuming()   
+planner_channel.basic_consume(queue=SEND_DATA_QUEUE, on_message_callback=callback)
+planner_channel.start_consuming()
