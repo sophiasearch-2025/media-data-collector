@@ -70,7 +70,7 @@ Registra `start_batch` que indica el inicio de la tanda, `end_batch_received` co
 
 ## Flujo de funcionamiento
 
-1. El proceso logger se inicializa con el scheduler, quien registra un log `start_batch` en `logging_control_queue` por medio de `queue_sender_logger_ctrl`.
+1. El proceso logger se inicializa con el scheduler, quien registra un log `start_batch` en `logging_control_queue` por medio de método en `queue_sender_logger_ctrl.py`.
 2. Mientras se ejecuta el sistema, un componente (crawler o scheduler) captura un error propio, o bien, el scraper scrapea una URL específica con éxito/error.
 3. Envía un mensaje al logger mediante alguno de:
     * `queue_sender_generic_error.py`
@@ -101,6 +101,7 @@ Registra `start_batch` que indica el inicio de la tanda, `end_batch_received` co
 
 #### Módulos internos del repositorio
 
+Estos módulos, almacenados en el directorio `utils/`, son utilizados por funciones de cada componente para gestionar las conexiones a Redis y RabbitMQ.
 * `utils.rabbitmq_utils`
 * `utils.redis_utils`
 
