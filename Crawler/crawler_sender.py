@@ -28,6 +28,7 @@ def send_link (link, tags):
         )
     )
     print("Mensaje enviado hacia scraper desde crawler...")
+
 def send_error(link, e, stage):
     message = {
         "origen":"Crawler",
@@ -43,6 +44,5 @@ def send_error(link, e, stage):
         properties = pika.BasicProperties(
             delivery_mode = 2
         )
-
     )
     print("Mensaje error enviado hacia LOG desde crawler...")
