@@ -14,6 +14,10 @@ for q in [SCRAPER_QUEUE, LOG_QUEUE]:
     crawler_channel.queue_declare(queue=q, durable=True)
 
 def send_link (link, tags):
+    '''
+    Función que envia mensajes a cola 'scraper_queue' para
+    iniciar el proceso de scrapping
+    '''
     message = {
         "url":link,     # Link Noticia enviada a scrapper
         "tags":tags     # Tags Categorías 
@@ -30,6 +34,10 @@ def send_link (link, tags):
     print("Mensaje enviado hacia scraper desde crawler...")
 
 def send_error(link, e, stage):
+    '''
+    Función que envia mensajes de errores en el proceso de 
+    crawling a cola 'crawler_log_queue'
+    '''
     message = {
         "origen":"Crawler",
         "error_timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
