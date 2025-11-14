@@ -4,7 +4,7 @@ Este módulo implementa un sistema centralizado de logging usando RabbitMQ como 
 
 ## Formato general de logs:
 Cada entrada log registra un atributo "id_logging_process" como identificador de la tanda de logging. 
-* **Para los logs de scraping_results, crawler_errors y scheduler_errors:** este campo es adicional, es decir, es agregado como atributo por el logger después de recoger el mensaje json desde RabbitMQ y antes de anexarlo a la lista de entradas en Redis. El valor es generado al inicio del proceso logger y se mantiene constante hasta su finalización. De esta forma, todas las entradas escritas por el mismo proceso logger tendrán el mismo número identificador.
+  * **Para los logs de `scraping_results`, `crawler_errors` y `scheduler_errors`:** este campo es adicional, es decir, es agregado como atributo por el logger después de recoger el mensaje json desde RabbitMQ y antes de anexarlo a la lista de entradas en Redis. El valor es generado al inicio del proceso logger y se mantiene constante hasta su finalización. De esta forma, todas las entradas escritas por el mismo proceso logger tendrán el mismo número identificador.
 #### logs `scraping_results` en Redis
 Registran éxito/error por cada URL scrapeada.
 ```json
