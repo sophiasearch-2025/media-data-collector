@@ -57,7 +57,7 @@ El formato de los mensajes de error provenientes del scheduler es el siguiente:
     {
         "from": "scheduler"
         "arg_medio": arg_medio, correspondiente al argumento 'medio' suministrado
-        "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
         "stage": etapa que falló,
         "error_detail": error_detail,
     }
@@ -66,7 +66,7 @@ El formato de los mensajes de error provenientes del crawler es el siguiente:
     {
         "from": "crawler"
         "arg_medio": arg_medio, correspondiente al argumento 'medio' suministrado
-        "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
         "stage": etapa que falló,
         "error_detail": error_detail,
     }
@@ -105,7 +105,7 @@ def error_send(
         msg_to_enqueue = {
             "from": "crawler",
             "arg_medio": arg_medio,
-            "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "stage": etapa,
             "error_detail": error_detail,
         }
@@ -116,7 +116,7 @@ def error_send(
         msg_to_enqueue = {
             "from": "scheduler",
             "arg_medio": arg_medio,
-            "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "stage": etapa,
             "error_detail": error_detail,
         }
