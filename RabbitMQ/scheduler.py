@@ -39,7 +39,7 @@ def main():
                 )
                 # # --- crear listener del crawler ---
                 crawl_process = subprocess.Popen(
-                    ["python", "Crawler/crawler_biobio.py", medio]
+                    ["python", "Crawler/crawler.py", medio]
                 )
                 # --- se esperan a los procesos para continuar ---
                 # send_datos_process.wait()
