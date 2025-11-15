@@ -17,4 +17,4 @@ ______________________________________________
 ![vista_fisica](./diagramas/vista_fisica.png)
 
 ### Diagrama 4: Vista procesos
-![vista_procesos] (./diagramas/vista_procesos.png)
+![vista_procesos](./diagramas/vista_procesos.png)
