@@ -2,7 +2,6 @@
 
 ## Requisitos
 
-[Requisitos](../requirements.txt)
 
 Para activar el entorno virtual, debe ejecutar los siguientes comandos en su terminal:
 ```
@@ -15,6 +14,8 @@ Use el siguiente comando para instalar los paquetes necesarios para los scripts 
 ```
 pip install -r requirements.txt
 ```
+Paquetes que se instalarán:
+[Requisitos](../requirements.txt)
 
 En la carpeta `Crawler/` se encuentra el script de recopilación de artículos de noticias y el output de este mismo en formato `csv`. En `scraper/` se encuentra el script de scraping para cada artículo de noticias que el crawler recolecte.
 
