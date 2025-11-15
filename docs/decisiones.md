@@ -1,4 +1,4 @@
-## Dentro de las decisiones técnicas que se tomaron para el desarrollo del subsistema estas fueron las más importantes:
+# Decisiones técnicas
 
 - ## Crawler:
 1. Se escogió el medio [biobiochile](https://www.biobiochile.cl) por encima de otras páginas principalmente porque no tiene una subscripcion para tente acceso a sus noticias, además que la pagina sigue una estructura constante en la formulación de sus noticias.
@@ -105,4 +105,4 @@ ___________________________________________
 
 ___________________________________________
 - ## Documentación:
-1. Se consideró que al tener que ejecutar más de un archivo que se tendrá que ejecutar y desplegar, que cada uno tenga su propia documentación con información específica de cada archivo explicando a detalle dudas que puedan existir sobre el despliegue de dichos archivos. De igual forma fueron adjuntados toda la documentación en [README.md](./docs/README.md)
+1. Se consideró que al tener que ejecutar más de un archivo que se tendrá que ejecutar y desplegar, que cada uno tenga su propia documentación con información específica de cada archivo explicando a detalle dudas que puedan existir sobre el despliegue de dichos archivos. De igual forma fueron adjuntados toda la documentación en [README.md](./README.md)
