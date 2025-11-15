@@ -18,14 +18,14 @@ _________________________________________________________________________
 ## Documentacion interna
 Enlaces a los documentos principales del subsistema:
 
-- [Arquitectura](./docs/arquitectura.md)
-- [Decisiones técnicas](./docs/decisiones.md)
-- [Requisitos](./docs/requisitos.md)
-- [Despliegue](./docs/deploy.md)
-- [API](./api_metricas/api.md)
-- [Crawler] (./docs/crawler_biobio.md)
-- [Logger] (./docs/logger.md)
-- [Scraper] (./docs/scraper_biobio.md)
+- [Arquitectura](./arquitectura.md)
+- [Decisiones técnicas](./decisiones.md)
+- [Requisitos](./requisitos.md)
+- [Despliegue](./deploy.md)
+- [API](./api.md)
+- [Crawler](./crawler_biobio.md)
+- [Logger](./logger.md)
+- [Scraper](./scraper_biobio.md)
 
 _________________________________________________________________________
 
