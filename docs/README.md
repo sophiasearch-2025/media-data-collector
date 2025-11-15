@@ -22,10 +22,11 @@ Enlaces a los documentos principales del subsistema:
 - [Decisiones técnicas](./decisiones.md)
 - [Requisitos](./requisitos.md)
 - [Despliegue](./deploy.md)
-- [API](./api.md)
 - [Crawler](./crawler_biobio.md)
-- [Logger](./logger.md)
 - [Scraper](./scraper_biobio.md)
+- [RabbitMQ](../RabbitMQ/rabbit_mq.md)
+- [Logger](./logger.md)
+- [API](../api_metricas/api.md)
 
 _________________________________________________________________________
 
