@@ -2,7 +2,7 @@
 
 ## Requisitos
 
-[Requisitos](./requirements.txt)
+[Requisitos](../requirements.txt)
 
 Para activar el entorno virtual, debe ejecutar los siguientes comandos en su terminal:
 ```
