@@ -26,7 +26,7 @@ def proceso_send_datos():
 
 def proceso_scrapper(n):
     # --- crear listener del scraper (el cual espera a mensajes de crawler) ---
-    for _ in n:
+    for _ in range(int(n)):
         subprocess.Popen(["python", "scraper/scraper_biobio.py"])
 
 
