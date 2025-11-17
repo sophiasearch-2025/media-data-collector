@@ -95,7 +95,7 @@ ___________________________________________
 
 ___________________________________________
 - ## Métricas:
-1. Se tomó la decisión de que para acceder a la información de las métricas se usara una API, en este caso se optó por usar FastAPI por comodidad.
+1. Se tomó la decisión de que para acceder a la información de las métricas se usará una API, en este caso se optó por usar FastAPI por comodidad.
 
 2. Almacenar las métricas en archivos json, ya que es un formato fácil de entender para humanos y software.
 

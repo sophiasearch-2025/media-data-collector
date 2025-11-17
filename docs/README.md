@@ -46,3 +46,68 @@ Las métricas que servirán para medir el rendimiento del crawler y del scrapper
 
 _________________________________________________________________________
 
+## Distribución de las carpetas
+```
+├── .env                                    #Variables de entorno locales
+├── .gitignore                              #Exclusiones de control de versiones
+├── docker-compose.yml                      #Orquestación de servicios (RabbitMQ, API, etc.)
+├── rabbitmq.conf                           #Configuración del broker RabbitMQ
+├── requirements.txt                        #Dependencias del proyecto (pip)
+├── test_scraper.py                         #Prueba rápida del scraper usando el CSV
+│
+├── api_metricas/                           #API (FastAPI) para exponer métricas
+│   ├── api.md                              #Documentación de la API
+│   ├── main.py                             #Punto de entrada de la API FastAPI
+│   ├── __init__.py                         #Indicador de paquete Python
+│   └── routers/
+│       └── metrics_router.py               #Endpoints para consultar métricas
+│
+├── Crawler/                                #Crawling: recolección inicial de URLs
+│   ├── biobiochile.csv                     #Listado de URLs descubiertas
+│   ├── crawler.py                          #Lógica base reutilizable del crawler
+│   ├── crawler_biobio.py                   #Crawler específico para BioBioChile
+│   └── crawler_sender.py                   #Envío de resultados del crawler a RabbitMQ
+│
+├── docs/                                   #Documentación técnica del subsistema
+│   ├── arquitectura.md                     #Vista general de componentes
+│   ├── crawler_biobio.md                   #Detalles del crawler BioBioChile
+│   ├── decisiones.md                       #Decisiones técnicas justificadas
+│   ├── deploy.md                           #Guía de despliegue
+│   ├── logger.md                           #Uso del sistema de logging
+│   ├── rabbit_mq.md                        #Guía de mensajería con RabbitMQ
+│   ├── requisitos.md                       #Requisitos funcionales y no funcionales
+│   ├── scraper_biobio.md                   #Detalles del scraper BioBioChile
+│   ├── README.md                           #Índice y guía de esta documentación
+│   └── diagramas/                          #Diagramas de arquitectura y procesos
+│       ├── casos_de_usos.png               #Diagrama de casos de uso
+│       ├── diagrama_componentes.png        #Diagrama de componentes
+│       ├── vista_fisica.png                #Vista física (infraestructura)
+│       └── vista_procesos.png              #Vista de procesos
+│
+├── logger/                                 #Módulos de logging y publicación en colas
+│   ├── logger.py                           #Configuración central de logging
+│   ├── logs_operations.py                  #Operaciones/utilidades sobre logs
+│   ├── queue_sender_generic_error.py       #Publica errores genéricos en RabbitMQ
+│   ├── queue_sender_logger_ctrl.py         #Eventos de control del logger a RabbitMQ
+│   └── queue_sender_scraper_results.py     #Publica resultados del scraper
+│
+├── metrics/                                #Métricas generadas en tiempo de ejecución
+│   ├── crawler_metrics.json                #Métricas del proceso de crawling
+│   └── scraper_metrics.json                #Métricas del proceso de scraping
+│
+├── RabbitMQ/                               #Utilidades de mensajería y scheduling
+│   ├── pseudo_crawler.py                   #Generador de eventos/pruebas de flujo
+│   ├── scheduler.py                        #Programación de tareas del sistema
+│   └── send_data.py                        #Envío de datos a colas RabbitMQ
+│
+├── scraper/                                #Scraper de artículos/noticias
+│   ├── scraper_biobio.py                   #Extracción de contenido desde URLs BioBio
+│   └── data/
+│       └── output.json                     #Salida de ejemplo del scraping (JSON)
+│
+└── utils/                                  #Utilidades y helpers compartidos
+	├── environ_var.py                      #Carga/gestión de variables de entorno
+	├── rabbitmq_utils.py                   #Helpers para conexión/colas de RabbitMQ
+	├── redis_utils.py                      #Helpers para Redis
+	└── __init__.py                         #Indicador de paquete Python
+```
