@@ -73,6 +73,11 @@ def callback_control(id_logging_process: int, state):
             )
             # Cambia estado interno
             state["terminating"] = True
+            try:
+                # Detener el loop de consuming para que el flujo principal continúe
+                ch.stop_consuming()
+            except Exception:
+                pass
 
         logs_operations.anexar_log(msg, LOGGER_CTRL)
 
@@ -151,6 +156,73 @@ def main():
         rabbit_channel.stop_consuming()
 
         # registrar final de cierre y anexar directamente en los logs de redis
+        
+
+        # Calcular métricas del scraping a partir de los logs almacenados en Redis
+        try:
+            from datetime import datetime
+
+            scraping_logs = logs_operations.get_logs_list(SCRAPING_RESULTS)
+            total = len(scraping_logs)
+            exitos = sum(1 for l in scraping_logs if l.get("status") == "success")
+            fallos = total - exitos
+
+            starts = []
+            finishes = []
+            dur_ms = []
+            for l in scraping_logs:
+                st = l.get("starting_time")
+                ft = l.get("finishing_time")
+                dm = l.get("duration_ms")
+                if st:
+                    try:
+                        starts.append(datetime.strptime(st, "%Y-%m-%d %H:%M:%S"))
+                    except Exception:
+                        pass
+                if ft:
+                    try:
+                        finishes.append(datetime.strptime(ft, "%Y-%m-%d %H:%M:%S"))
+                    except Exception:
+                        pass
+                if dm:
+                    try:
+                        dur_ms.append(float(dm))
+                    except Exception:
+                        pass
+
+            if starts and finishes:
+                duracion_segundos = (max(finishes) - min(starts)).total_seconds()
+            elif dur_ms:
+                duracion_segundos = sum(dur_ms) / 1000.0
+            else:
+                duracion_segundos = 0
+
+            porcentaje = (exitos / total) * 100 if total > 0 else 0
+            noticias_por_minuto = exitos / (duracion_segundos / 60) if duracion_segundos > 0 else 0
+            tiempo_promedio = (sum(dur_ms) / 1000.0) / exitos if (exitos > 0 and dur_ms) else 0
+
+            os.makedirs("metrics", exist_ok=True)
+            with open("metrics/scraper_metrics.json", "w", encoding="utf-8") as f:
+                json.dump(
+                    {
+                        "total_urls_procesadas": total,
+                        "scrape_exitosos": exitos,
+                        "scrape_fallidos": fallos,
+                        "porcentaje_exito": round(porcentaje, 2),
+                        "duracion_segundos": round(duracion_segundos, 2),
+                        "noticias_por_minuto": round(noticias_por_minuto, 3),
+                        "tiempo_promedio_scrape": round(tiempo_promedio, 3),
+                    },
+                    f,
+                    ensure_ascii=False,
+                    indent=4,
+                )
+            print("[logger] Métricas de scraping escritas en metrics/scraper_metrics.json")
+        except Exception as e:
+            print(f"Error calculando métricas de scraping: {e}")
+
+
+
         end_complete_ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         end_msg = {
             "action": "end_batch_completed",

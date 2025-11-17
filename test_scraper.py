@@ -28,10 +28,10 @@ def main(desde: int = 1, hasta: int = None, output: bool = False):
         first = True
 
     # Scrapear por cada URL obtenida por el crawler
-    start_time = time.time()
-    total = len(lista_url)
-    exitos = 0
-    fallos = 0
+    #start_time = time.time()
+    #total = len(lista_url)
+    #exitos = 0
+    #fallos = 0
 
     for index, articulo in enumerate(lista_url, start = 1):
         if index < desde:
@@ -49,14 +49,14 @@ def main(desde: int = 1, hasta: int = None, output: bool = False):
             doc = scrap_news_article(url, validate = True)
 
             if (isinstance(doc, dict)):
-                exitos += 1
+                #exitos += 1
                 print(f"Url {index} scrapeada exitosamente")
                 if output:
                     if not first: output_file.write(",\n")
                     json.dump(doc, output_file , ensure_ascii = False, indent = 4)
                     first = False
             else:
-                fallos += 1
+                #fallos += 1
                 print(f"Error al scrapear la url n° {index}") 
                 break
 
@@ -65,22 +65,22 @@ def main(desde: int = 1, hasta: int = None, output: bool = False):
             break
 
     #Metricas del scraping    
-    duracion = time.time() - start_time
-    porcentaje = (exitos / total) * 100 if total > 0 else 0
-    noticias_por_minuto = exitos / (duracion / 60) if duracion > 0 else 0
-    tiempo_promedio = duracion / exitos if exitos > 0 else 0
+    #duracion = time.time() - start_time
+    #porcentaje = (exitos / total) * 100 if total > 0 else 0
+    #noticias_por_minuto = exitos / (duracion / 60) if duracion > 0 else 0
+    #tiempo_promedio = duracion / exitos if exitos > 0 else 0
 
-    os.makedirs("metrics", exist_ok=True)
-    with open("metrics/scraper_metrics.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "total_urls_procesadas": total,
-            "scrape_exitosos": exitos,
-            "scrape_fallidos": fallos,
-            "porcentaje_exito": round(porcentaje, 2),
-            "duracion_segundos": round(duracion, 2),
-            "noticias_por_minuto": round(noticias_por_minuto, 3),
-            "tiempo_promedio_scrape": round(tiempo_promedio, 3)
-        }, f, ensure_ascii=False, indent=4)
+    #os.makedirs("metrics", exist_ok=True)
+    #with open("metrics/scraper_metrics.json", "w", encoding="utf-8") as f:
+        #json.dump({
+            #"total_urls_procesadas": total,
+            #"scrape_exitosos": exitos,
+            #"scrape_fallidos": fallos,
+            #"porcentaje_exito": round(porcentaje, 2),
+            #"duracion_segundos": round(duracion, 2),
+            #"noticias_por_minuto": round(noticias_por_minuto, 3),
+            #"tiempo_promedio_scrape": round(tiempo_promedio, 3)
+        #}, f, ensure_ascii=False, indent=4)
 
 
     # Cerrar el archivo del output
