@@ -41,6 +41,7 @@ def scraping_results_send(
     status: str,  # success or error
     finishing_time: datetime | None = None,
     error: str | None = None,
+    fecha_publicacion: str | None = None,
 ):
     try:
         rabbit_channel = rabbit.get_rabbit_connection().channel()
@@ -53,6 +54,7 @@ def scraping_results_send(
         "medio": medio,
         "starting_time": starting_time.strftime("%Y-%m-%d %H:%M:%S"),
         "status": status,
+        "fecha_publicacion": fecha_publicacion if fecha_publicacion else "",
     }
 
     if finishing_time is not None:

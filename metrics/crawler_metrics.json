@@ -1,8 +1,9 @@
 {
-    "sitio": "biobiochile",
-    "total_categorias": 79,
-    "total_urls_encontradas": 1212,
-    "urls_por_categoria": 15.342,
-    "duracion_segundos": 127.53,
-    "urls_por_minuto": 570.23
+    "biobiochile": {
+        "total_categorias": 79,
+        "total_urls_encontradas": 1179,
+        "urls_por_categoria": 14.924,
+        "duracion_segundos": 119.76,
+        "urls_por_minuto": 590.69
+    }
 }

@@ -161,6 +161,7 @@ def consume_article(ch, method, properties, body):
             "success",
             finishing_time,
             None,
+            scraper_results.get("fecha", None),
         )
         print("Mensaje enviado hacia logs desde scraper...")
         # --- mensaje para send_data ---
