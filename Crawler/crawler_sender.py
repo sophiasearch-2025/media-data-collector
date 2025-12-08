@@ -16,7 +16,7 @@ for q in [SCRAPER_QUEUE, LOG_QUEUE]:
     crawler_channel.queue_declare(queue=q, durable=True)
 
 
-def send_link(link, tags):
+def send_link(link, tags, medio=""):
     """
     Función que envia mensajes a cola 'scraper_queue' para
     iniciar el proceso de scrapping
@@ -24,6 +24,7 @@ def send_link(link, tags):
     message = {
         "url": link,  # Link Noticia enviada a scrapper
         "tags": tags,  # Tags Categorías
+        "medio": medio,  # Medio de prensa
     }
     # Enviar el mensaje al componente de scrapping
     crawler_channel.basic_publish(

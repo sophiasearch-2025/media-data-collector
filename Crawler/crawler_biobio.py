@@ -150,7 +150,7 @@ async def crawl_categories(site_config):
     return category_links
 
 
-async def crawl_news(site_config, category_links):
+async def crawl_news(site_config, category_links, medio=""):
     '''
     Crawl de los links de noticias de cada categoría,
     entrega set de tuplas de links de noticias y sus tags de
@@ -199,7 +199,7 @@ async def crawl_news(site_config, category_links):
                 news.add((categoria, link))
                 # Envia link y categoria a Scrapper si este no ha sido enviado previamente
                 if link not in seen_links:
-                    send_link(link, categoria)
+                    send_link(link, categoria, medio)
                     seen_links.add(link)
 
         await browser.close()
