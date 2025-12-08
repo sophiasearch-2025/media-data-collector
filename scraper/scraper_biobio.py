@@ -1,13 +1,13 @@
 import json
 import os
-import re
 import sys
 from datetime import datetime as dtime
-from urllib.parse import urljoin
+from scraper.scraping_utils import extract, extract_body, extract_images, extract_text_only
 
 import pika
 import requests
 from bs4 import BeautifulSoup
+
 
 # Importa scraping_results_send() desde logger/
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -17,93 +17,6 @@ SCRAPER_QUEUE = "scraper_queue"
 LOG_QUEUE = "scraping_log_queue"
 SEND_DATA_QUEUE = "send_data_queue"
 
-# Conectar con RabbitMQ
-connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-
-# Abrir un canal de conexión con RabbitMQ
-scraper_channel = connection.channel()
-
-# Definir las colas a escuchar
-for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
-    scraper_channel.queue_declare(queue=q, durable=True)
-
-
-def extract(soup: BeautifulSoup, selectors: list[str], default=None) -> str | None:
-    """
-    Busca texto dentro de elementos específicos mediante múltiples selectores CSS.
-    Retorna el primer texto encontrado o un valor por defecto.
-    """
-
-    for sel in selectors:
-        info = soup.select_one(sel)
-        if info:
-            txt = info.get_text(strip=True, separator=" ")
-            if txt:
-                return txt
-    return default
-
-
-def extract_text_only(
-    soup: BeautifulSoup, selectors: list[str], default=None
-) -> str | None:
-    """
-    Similar a extract(), pero obtiene solo texto directo, ignorando nodos hijos
-    (útil para fechas o autores anidados).
-    """
-
-    for sel in selectors:
-        info = soup.select_one(sel)
-        if info:
-            txt = " ".join(info.find_all(string=True, recursive=False)).strip()
-            if txt:
-                return txt
-
-    return default
-
-
-def extract_multimedia(
-    soup: BeautifulSoup, selectors: list, default: str = ""
-) -> list[str]:
-    """
-    Busca imágenes o elementos multimedia dentro de los selectores indicados.
-    Reconoce atributos como src, data-src y data-lazy-src, e incluso URLs embebidas en style.
-    """
-
-    images = set()
-    for sel in selectors:
-        for img in soup.select(sel):
-            src = img.get("src") or img.get("data-src") or img.get("data-lazy-src")
-
-            if not src and img.has_attr("style"):
-                match = re.search(r"background-image\s*:\s*url\((.*?)\)", img["style"])
-                if match:
-                    src = match.group(1).strip(" \"'")
-
-            if src and isinstance(src, str):
-                url = urljoin(default, src.strip())
-                images.add(url)
-
-    return list(images)
-
-
-def extract_body(soup: BeautifulSoup, selectors: list, default: str = "") -> str:
-    """
-    Recorre selectores de contenido para construir el cuerpo completo del artículo.
-    Devuelve un texto unificado con saltos de línea.
-    """
-
-    cuerpo = []
-    for sel in selectors:
-        for parrafo in soup.select(sel):
-            if parrafo:
-                txt = parrafo.get_text(strip=True, separator=" ")
-                cuerpo.append(txt) if txt else cuerpo.append(default)
-
-    if not cuerpo:
-        return None
-    else:
-        return "\n".join(cuerpo)
-
 
 def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     """
@@ -111,7 +24,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     tanto un diccionario de python como una lista con los elementos de la noticia faltantes,
     dependiendo de los parámetros y el output.
     """
-    invalid_args = ["Error, falta lo siguiente: "]
+    invalid_args = []
 
     try:
         # Realizar una request al sitio
@@ -189,7 +102,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
         if validate and not cuerpo:
             invalid_args.append("cuerpo")
 
-        multimedia = extract_multimedia(
+        multimedia = extract_images(
             soup,
             [
                 "div.post-main div.post-image img",
@@ -200,7 +113,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
             ],
         )
 
-        if validate and len(invalid_args) > 1:
+        if validate and len(invalid_args) >= 1:
             return invalid_args
 
         return {
@@ -234,8 +147,8 @@ def consume_article(ch, method, properties, body):
         scraper_results = scrap_news_article(url, validate=True)
 
         # Si devuelve una lista, detengo el proceso con un error
-        if isinstance(scraper_results, list):
-            raise Exception(f"Error en el scraping: {scraper_results}")
+        if not isinstance(scraper_results, dict):
+            raise Exception(f"Error en el scraping: { (f'Faltaron los siguientes parámetros críticos: {scraper_results}' if isinstance(scraper_results, list) else scraper_results) }")
 
         finishing_time = dtime.now()
 
@@ -280,6 +193,19 @@ def consume_article(ch, method, properties, body):
 
 
 def main():
+    global scraper_channel
+
+    # Conectar con RabbitMQ
+    connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+
+    # Abrir un canal de conexión con RabbitMQ
+    scraper_channel = connection.channel()
+
+    # Definir las colas a escuchar
+    for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
+        scraper_channel.queue_declare(queue=q, durable=True)
+
+
     scraper_channel.basic_consume(
         queue=SCRAPER_QUEUE, on_message_callback=consume_article
     )
@@ -298,7 +224,7 @@ if __name__ == "__main__":
 def test():
     test_url = "https://www.biobiochile.cl/noticias/servicios/beneficios/2025/10/23/asi-funciona-el-beneficio-estrudiantil-que-cubre-mas-de-un-millon-de-pesos-del-arancel.shtml"
     noticia = scrap_news_article(test_url)
-    if noticia:
+    if isinstance(noticia, dict):
         print(json.dumps(noticia, indent=3, ensure_ascii=False))
 
 
