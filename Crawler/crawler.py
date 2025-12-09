@@ -38,6 +38,9 @@ async def main():
 
     start_time = time.time() #inicio medicion tiempo
 
+    # Pasar el medio a crawler_biobio para que lo use en send_link
+    sys.modules['crawler_biobio'].medio = medio
+
     # Crawl links de categorías en el sitio
     categorias = await crawl_categories(config)
     print(f">> Total categorias encontradas en {medio}: {len(categorias)}\n")
@@ -56,16 +59,28 @@ async def main():
     urls_por_minuto = total_urls / (duracion / 60) if duracion > 0 else 0
     os.makedirs("metrics", exist_ok=True)
 
+    # Leer métricas existentes o crear diccionario vacío
+    metrics_file = "metrics/crawler_metrics.json"
+    existing_metrics = {}
+    if os.path.exists(metrics_file):
+        try:
+            with open(metrics_file, "r", encoding="utf-8") as f:
+                existing_metrics = json.load(f)
+        except Exception:
+            existing_metrics = {}
+
+    # Actualizar solo las métricas del sitio actual
+    existing_metrics[medio] = {
+        "total_categorias": total_categorias,
+        "total_urls_encontradas": total_urls,
+        "urls_por_categoria": round(promedio_por_categoria, 3),
+        "duracion_segundos": round(duracion, 2),
+        "urls_por_minuto": round(urls_por_minuto, 2)
+    }
+
     # Guardar Métricas en archivo json
-    with open("metrics/crawler_metrics.json", "w", encoding="utf-8") as f:
-        json.dump({
-            "sitio": medio,
-            "total_categorias": total_categorias,
-            "total_urls_encontradas": total_urls,
-            "urls_por_categoria": round(promedio_por_categoria, 3),
-            "duracion_segundos": round(duracion, 2),
-            "urls_por_minuto": round(urls_por_minuto, 2)
-        }, f, ensure_ascii=False, indent=4)
+    with open(metrics_file, "w", encoding="utf-8") as f:
+        json.dump(existing_metrics, f, ensure_ascii=False, indent=4)
 
 
     # Guardar links en un csv

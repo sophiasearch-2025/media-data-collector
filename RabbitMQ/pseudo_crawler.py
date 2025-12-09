@@ -21,7 +21,7 @@ def main():
         while(True):
             msg = {
                 "url": "https://www.biobiochile.cl/noticias/nacional/chile/2025/10/12/franco-parisi-creo-que-paso-a-segunda-vuelta-con-jara-no-hay-tanto-voto-de-ultraderecha-en-chile.shtml",
-                "tags": ["politica", "pichula"]
+                "tags": ["politica", "elecciones"]
             }
             # --- se envia el mensaje a la cola de scraper, este lo debe recibir y scrapear ---
             sche_channel.basic_publish(

@@ -1,8 +1,9 @@
 {
-    "sitio": "latercera",
-    "total_categorias": 27,
-    "total_urls_encontradas": 809,
-    "urls_por_categoria": 29.963,
-    "duracion_segundos": 96.36,
-    "urls_por_minuto": 503.72
+    "biobiochile": {
+        "total_categorias": 79,
+        "total_urls_encontradas": 1179,
+        "urls_por_categoria": 14.924,
+        "duracion_segundos": 119.76,
+        "urls_por_minuto": 590.69
+    }
 }

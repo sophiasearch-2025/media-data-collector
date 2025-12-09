@@ -39,3 +39,14 @@ def clear_logs_list(list_name: str):
             f"Error inesperado al vaciar lista en Redis: {e}. No pudo vaciarse {list_name}"
         )
     return False
+
+##### --- obtener todos los logs de una lista ---
+def get_logs_list(list_name: str):
+    redis_client = redis_utils.get_redis_client()
+    try:
+        entries = redis_client.lrange(list_name, 0, -1)
+        return [json.loads(e) for e in entries]
+    except Exception as e:
+        print(f"Error al leer lista {list_name} desde Redis: {e}")
+    return []
+

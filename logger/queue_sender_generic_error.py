@@ -57,7 +57,7 @@ El formato de los mensajes de error provenientes del scheduler es el siguiente:
     {
         "from": "scheduler"
         "arg_medio": arg_medio, correspondiente al argumento 'medio' suministrado
-        "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
         "stage": etapa que falló,
         "error_detail": error_detail,
     }
@@ -66,7 +66,8 @@ El formato de los mensajes de error provenientes del crawler es el siguiente:
     {
         "from": "crawler"
         "arg_medio": arg_medio, correspondiente al argumento 'medio' suministrado
-        "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+        "stage": etapa que falló,
         "error_detail": error_detail,
     }
 """
@@ -90,6 +91,11 @@ def error_send(
     queue_name = ""
     msg_to_enqueue = {}
 
+    if arg_medio is None:
+        arg_medio = ""
+    if etapa is None:
+        etapa = ""
+
     if origen not in ["scheduler", "crawler"]:
         raise RuntimeError(
             f"Origen no especificado para error {error_detail}. Fallo al loggearlo."
@@ -99,7 +105,8 @@ def error_send(
         msg_to_enqueue = {
             "from": "crawler",
             "arg_medio": arg_medio,
-            "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "stage": etapa,
             "error_detail": error_detail,
         }
         declare_crawler_log_queue()
@@ -109,7 +116,7 @@ def error_send(
         msg_to_enqueue = {
             "from": "scheduler",
             "arg_medio": arg_medio,
-            "error_time": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
+            "error_timestamp": error_timestamp.strftime("%Y-%m-%d %H:%M:%S"),
             "stage": etapa,
             "error_detail": error_detail,
         }
