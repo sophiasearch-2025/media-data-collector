@@ -2,7 +2,12 @@ import json
 import os
 import sys
 from datetime import datetime as dtime
-from scraper.scraping_utils import extract, extract_body, extract_images, extract_text_only
+from scraper.scraping_utils import (
+    extract, 
+    extract_body, 
+    extract_images, 
+    extract_text_only
+)
 
 import pika
 import requests
