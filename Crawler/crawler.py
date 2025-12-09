@@ -1,4 +1,4 @@
-from Crawler.crawler_loadmore import *
+from crawler_loadmore import *
 import asyncio, json, csv
 import time, os, sys
 
@@ -39,7 +39,7 @@ async def main():
     start_time = time.time() #inicio medicion tiempo
 
     # Pasar el medio a crawler_biobio para que lo use en send_link
-    sys.modules['crawler_biobio'].medio = medio
+    sys.modules['crawler_loadmore'].medio = medio
 
     # Crawl links de categorías en el sitio
     categorias = await crawl_categories(config)

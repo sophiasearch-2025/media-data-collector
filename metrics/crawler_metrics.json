@@ -5,5 +5,12 @@
         "urls_por_categoria": 14.924,
         "duracion_segundos": 119.76,
         "urls_por_minuto": 590.69
+    },
+    "latercera": {
+        "total_categorias": 27,
+        "total_urls_encontradas": 820,
+        "urls_por_categoria": 30.37,
+        "duracion_segundos": 85.51,
+        "urls_por_minuto": 575.38
     }
 }
