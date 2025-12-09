@@ -1,4 +1,4 @@
-from crawler_biobio import *
+from Crawler.crawler_loadmore import *
 import asyncio, json, csv
 import time, os, sys
 
@@ -11,6 +11,14 @@ SITES = {
         "load_more_selector": ".fetch-btn",             # Classname boton cargar mas links de la página
         "pagination_type": "loadmore",                  # Forma en que se cargan mas links, loadmore asume boton jscript
         "max_clicks": 2                                 # Cantidad máxima de clikcs de este boton en la página
+    },
+    "latercera": {
+        "start_url":"https://www.latercera.com/",
+        "category_pattern": "canal",         # Slug página para reconcoer categorias
+        "news_pattern": ["/noticia/"],                 # Slug página para reconocer links de noticias
+        "load_more_selector": ".result-list__see-more",             # Classname boton cargar mas links de la página
+        "pagination_type": "loadmore",                  # Forma en que se cargan mas links, loadmore asume boton jscript
+        "max_clicks": 2 
     }
 }
 
@@ -37,16 +45,7 @@ async def main():
     total_categorias = len(categorias)
     all_news = set()
     categorias = list(categorias)
-    #tope = 0
 
-    # Avance procesado en lotes para futura paralelización
-    #for i in range (0, len(categorias), 10):
-     #   if i + 10 < len(categorias):
-      #      tope = i+10
-       # else:
-        #    tope = len(categorias)
-
-    # Crawl links de noticias desde los links de categorias
     news_batch = await crawl_news(config, categorias)
     all_news.update(news_batch)
     

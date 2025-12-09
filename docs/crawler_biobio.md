@@ -132,7 +132,7 @@ SITES = {
 ```bash
 cd ~/ArquitecturaSoftware/media-data-collector
 source .venv/bin/activate
-python -u Crawler/crawler_biobio.py biobiochile
+python -u Crawler/crawler.py biobiochile
 ```
 - Ejecutar desde scheduler (recomendado):
 ```bash

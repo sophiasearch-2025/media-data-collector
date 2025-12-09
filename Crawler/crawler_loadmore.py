@@ -1,7 +1,7 @@
 import asyncio
 from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 from crawler_sender import *
 
 
@@ -30,51 +30,59 @@ async def _block_assets(page):
 def get_category(link, slug):
     '''
     Función que extrae las categorías del enlace de las noticias
+    Compatible con biobiochile.cl y latercera.com
     '''
     try:
-        categoria = slug # valor por defecto
+        categoria = slug  # valor por defecto
 
-        # extrae la parte relevante después de /especial/ o /noticias/
-        if "/especial/" in link:
-            path = link.split("/especial/", 1)[1]
-        elif "/noticias/" in link:
-            path = link.split("/noticias/", 1)[1]
-        else:
-            path = None
-
-        if path:
-            parts = [p for p in path.split("/") if p]  # filtra vacíos
-            categorias_parts = []
-            for part in parts:
-                # detener si encontramos un año (4 dígitos)
-                if part.isdigit() and len(part) == 4:
-                    break
-                categorias_parts.append(part)
-                if len(categorias_parts) == 3:  # máximo 3 niveles
-                    break
-
-            # si el primer segmento es "biobiochile" lo descartamos
-            if categorias_parts and categorias_parts[0].lower() == "biobiochile":
-                categorias_parts = categorias_parts[1:]
-
-            # quitar segmento redundante "noticias" (ej. bbcl-investiga/noticias/articulos -> bbcl-investiga/articulos)
-            if len(categorias_parts) >= 2 and categorias_parts[1].lower() == "noticias":
-                categorias_parts.pop(1)
-
-            # caso especial: noticias-patrocinadas -> usar solo 'noticias-patrocinadas'
-            if categorias_parts and categorias_parts[0].lower() == "noticias-patrocinadas":
-                categoria = "noticias-patrocinadas"
-
-            elif categorias_parts:
-                categoria = "/".join(categorias_parts)
-
+        # Biobiochile: extrae después de /especial/ o /noticias/
+        if "biobiochile.cl" in link:
+            if "/especial/" in link:
+                path = link.split("/especial/", 1)[1]
+            elif "/noticias/" in link:
+                path = link.split("/noticias/", 1)[1]
             else:
-                categoria = slug
+                path = None
+
+            if path:
+                parts = [p for p in path.split("/") if p]
+                categorias_parts = []
+                for part in parts:
+                    if part.isdigit() and len(part) == 4:
+                        break
+                    categorias_parts.append(part)
+                    if len(categorias_parts) == 3:
+                        break
+
+                if categorias_parts and categorias_parts[0].lower() == "biobiochile":
+                    categorias_parts = categorias_parts[1:]
+
+                if len(categorias_parts) >= 2 and categorias_parts[1].lower() == "noticias":
+                    categorias_parts.pop(1)
+
+                if categorias_parts and categorias_parts[0].lower() == "noticias-patrocinadas":
+                    categoria = "noticias-patrocinadas"
+                elif categorias_parts:
+                    categoria = "/".join(categorias_parts)
+                else:
+                    categoria = slug
+
+        # Latercera: primer segmento del path es la categoría
+        elif "latercera.com" in link:
+            path = urlparse(link).path
+            parts = [p for p in path.split("/") if p]
+            if parts:
+                categoria = parts[0]
+            else:
+                categoria = "sin-categoria"
+
+        else:
+            categoria = slug
 
     except Exception as e:
         send_error(link, e, f"Error al obtener tags de categorías de {link}")
         categoria = slug  # fallback
-    
+
     return categoria
 
 
@@ -190,7 +198,11 @@ async def crawl_news(site_config, category_links):
                 # Futura Busqueda links en paginación
                 cat_news = set()
 
-            slug = cat_url.rstrip("/").split("/")[-1]
+            # slug solo para biobiochile, para latercera no lo uses
+            if "biobiochile.cl" in cat_url:
+                slug = cat_url.rstrip("/").split("/")[-1]
+            else:
+                slug = ""  # para latercera, get_category ignora el slug
 
             for link in cat_news:
                 # Link encontrado se le obtiene sus tags de categorías
