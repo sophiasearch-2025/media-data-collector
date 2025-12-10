@@ -1,281 +1,130 @@
-# Despliegue y Acceso a la API de Métricas Sophia
+# README — API de Métricas Sophia
 
 ## 1. Descripción general
 
-La **API de Métricas Sophia** es un servicio desarrollado con **FastAPI** que permite acceder a las métricas generadas por los módulos **Crawler** y **Scraper** del proyecto.  
-Estas métricas se almacenan en la carpeta `metrics/` en formato JSON y se actualizan automáticamente cada vez que los componentes de recopilación ejecutan su proceso.
+La API de Métricas Sophia es un servicio desarrollado con FastAPI que expone las métricas generadas por los módulos Crawler y Scraper del proyecto Sophia Search.
+
+Los datos se almacenan en archivos JSON dentro de la carpeta:
+
+metrics/
+    crawler_metrics.json
+    scraper_metrics.json
+
+La API entrega estos datos para que la Interfaz de Administrador pueda visualizarlos y analizarlos.
 
 La API expone un único endpoint:
 
-```
 GET /api/metrics/
-```
-
-Este endpoint lee los archivos `crawler_metrics.json` y `scraper_metrics.json` y entrega su contenido en formato JSON para que la **Interfaz de Administrador (grupo 3)** los consuma y visualice.
 
 ---
 
-## 2. Ejecución del servidor en entorno local
+## 2. Estructura del proyecto
 
-Para iniciar la API localmente en modo desarrollo:
+media-data-collector/
+│
+├── api_metricas/
+│   ├── main.py
+│   └── routers/
+│       └── metrics_router.py
+│
+├── metrics/
+│   ├── crawler_metrics.json
+│   ├── scraper_metrics.json
+│   └── crawler_progress.json
+│
+├── Crawler/
+├── scraper/
+├── utils/
+├── logger/
+├── docs/
+├── requirements.txt
+└── docker-compose.yml
 
-```bash
+---
+
+## 3. Ejecución local de la API
+
+### 3.1. Crear entorno virtual
+
+python3 -m venv venv
+source venv/bin/activate
+
+### 3.2. Instalar dependencias
+
+pip install -r requirements.txt
+
+### 3.3. Ejecutar FastAPI
+
 uvicorn api_metricas.main:app --reload
-```
 
-Esto levanta el servidor en:
+Accesos:
 
-```
-http://127.0.0.1:8000
-```
-
-Podrás acceder a:
-
-- **Swagger UI (documentación interactiva):** http://127.0.0.1:8000/docs  
-- **Métricas (JSON):** http://127.0..1:8000/api/metrics/
-
-Este modo solo es accesible desde tu propio computador (localhost).
+- Documentación Swagger: http://127.0.0.1:8000/docs
+- Métricas: http://127.0.0.1:8000/api/metrics/
 
 ---
 
-## 3. Despliegue en red local (para acceso desde otros PCs)
+## 4. Despliegue en el servidor del proyecto
 
-Para que otros equipos de la misma red Wi-Fi o LAN puedan acceder a tu API, debes permitir conexiones externas a tu servidor.
+### 4.1. Acceder al servidor
 
-### 3.1. Ejecutar FastAPI escuchando todas las interfaces
+ssh root@172.105.21.15
 
-```bash
-uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000
-```
+### 4.2. Clonar repositorio
 
-### 3.2. Obtener tu IP local
+git clone https://github.com/sophiasearch-2025/media-data-collector.git
+cd media-data-collector
 
-```bash
-hostname -I
-```
+### 4.3. Instalar dependencias
 
-Ejemplo de salida:
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
-```
-192.168.1.45
-```
+### 4.4. Ejecutar API de producción
 
-### 3.3. Acceso desde otro equipo de la red
+./venv/bin/uvicorn api_metricas.main:app --host 0.0.0.0 --port 8080
 
-Cualquier otro PC conectado a la misma red podrá abrir en el navegador:
+Acceso público:
 
-```
-http://192.168.1.45:8000/docs
-```
-
-y acceder directamente a las métricas en:
-
-```
-http://192.168.1.45:8000/api/metrics/
-```
-
-### 3.4. (Opcional) Permitir tráfico en el puerto 8000
-
-Si el firewall bloquea las conexiones:
-
-```bash
-sudo ufw allow 8000
-```
+- Documentación: http://172.105.21.15:8080/docs
+- Métricas: http://172.105.21.15:8080/api/metrics/
 
 ---
 
-## 4. Despliegue en Internet (para acceso remoto o demo pública)
+## 5. Pruebas desde consola
 
-FastAPI no publica la API directamente en Internet.  
-Si se necesita que el equipo acceda desde cualquier lugar, existen dos opciones gratuitas.
-
-### Opción 1: Usar ngrok (rápido y sin configuración)
-
-Ngrok permite exponer tu API local a Internet de forma temporal mediante un túnel seguro HTTPS.  
-Ideal para **demos, pruebas o acceso remoto** sin necesidad de configurar puertos o routers.
-
-#### 1. Instalar ngrok (método recomendado)
-
-Ejecuta en tu terminal:
-
-```bash
-sudo apt update
-sudo apt install ngrok
-```
-
-Si tu sistema no encuentra el paquete, puedes instalarlo manualmente con:
-
-```bash
-curl -sSL https://ngrok-agent.s3.amazonaws.com/ngrok.asc   | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null   && echo "deb https://ngrok-agent.s3.amazonaws.com bookworm main"   | sudo tee /etc/apt/sources.list.d/ngrok.list   && sudo apt update   && sudo apt install ngrok
-```
-
-#### 2. Conectar tu cuenta (solo la primera vez)
-
-1. Crea o inicia sesión en [https://dashboard.ngrok.com](https://dashboard.ngrok.com)  
-2. Copia tu **authtoken** desde el panel.  
-3. Ejecútalo en tu terminal:
-
-```bash
-ngrok config add-authtoken TU_AUTHTOKEN_AQUI
-```
-
-#### 3. Ejecutar la API de FastAPI
-
-```bash
-uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000
-```
-
-#### 4. Abrir el túnel de ngrok
-
-En otra terminal (sin cerrar la anterior):
-
-```bash
-ngrok http 8000
-```
-
-Verás una salida similar a:
-
-```
-Forwarding  https://random-id.ngrok-free.dev -> http://localhost:8000
-```
-
-#### 5. Acceder desde cualquier lugar
-
-Usa la URL pública mostrada por ngrok (por ejemplo):
-
-```
-https://random-id.ngrok-free.dev
-```
-
-**Rutas disponibles:**
-- `/docs` → Documentación interactiva (Swagger UI)  
-- `/api/metrics/` → JSON con las métricas  
-
-#### Consideraciones importantes
-
-- La URL generada por ngrok es temporal y cambia cada vez que reinicias ngrok.  
-- Si cierras la terminal de ngrok o apagas el equipo, el túnel se cierra.  
-- Si necesitas una URL fija o persistente, puedes:
-  - Usar el plan Pro de ngrok, o  
-  - Desplegar la API en Render (ver siguiente sección).
-
-#### Consejo práctico (automatización)
-
-Puedes crear un script simple para levantar automáticamente la API y ngrok juntos:
-
-```bash
-#!/bin/bash
-uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000 &
-sleep 3
-ngrok http 8000
-```
-
-Guárdalo como `deploy_ngrok.sh`, luego dale permisos de ejecución:
-
-```bash
-chmod +x deploy_ngrok.sh
-```
-
-Y ejecútalo así:
-
-```bash
-./deploy_ngrok.sh
-```
-
-Esto levantará tu API y el túnel de ngrok automáticamente.
-
----
-
-### Opción 2: Desplegar en Render (gratuito)
-
-1. Crear una cuenta en [https://render.com](https://render.com)  
-2. Conectar el repositorio de GitHub donde esté la API.  
-3. Crear un nuevo servicio web (“New Web Service”).  
-4. Configuración recomendada:
-   - **Runtime:** Python  
-   - **Build Command:**  
-     ```bash
-     pip install -r requirements.txt
-     ```
-   - **Start Command:**  
-     ```bash
-     uvicorn api_metricas.main:app --host 0.0.0.0 --port 10000
-     ```
-   - **Port:** 10000
-5. Render desplegará la API y entregará una URL pública, por ejemplo:
-
-```
-https://api-metricas-sophia.onrender.com
-```
-
-Accesos disponibles:
-
-- https://api-metricas-sophia.onrender.com/docs  
-- https://api-metricas-sophia.onrender.com/api/metrics/
-
----
-
-## 5. Cómo probar la API
-
-Verificar el funcionamiento desde la terminal:
-
-```bash
 curl http://127.0.0.1:8000/api/metrics/
-```
 
-Para visualizar la respuesta con formato legible:
+Con formato:
 
-```bash
 curl http://127.0.0.1:8000/api/metrics/ | jq
-```
-
-Instalar `jq` (opcional):
-
-```bash
-sudo apt install jq
-```
-
-`jq` no es necesario para usar la API; solo formatea el JSON en la terminal.
 
 ---
 
-## 6. Uso por parte del equipo de Interfaz
+## 6. Uso desde frontend
 
-El grupo de interfaz debe realizar solicitudes `GET` a:
-
-```
-http://<IP_DEL_SERVIDOR>:8000/api/metrics/
-```
-
-### Ejemplo con JavaScript:
-
-```js
-fetch("http://192.168.1.45:8000/api/metrics/")
+fetch("http://172.105.21.15:8080/api/metrics/")
   .then(res => res.json())
   .then(data => {
-    console.log("Métricas recibidas:", data);
-    // Ejemplo de acceso:
-    // data.crawler_metrics.urls_por_minuto
-    // data.scraper_metrics.porcentaje_exito
-  })
-  .catch(err => console.error("Error al obtener métricas:", err));
-```
-
-### Librerías recomendadas para visualización:
-
-- Fetch API (nativa en JS)
-- Chart.js o Recharts (para graficar)
-- Bootstrap o Tailwind (para los estilos del dashboard)
+      console.log(data);
+  });
 
 ---
 
-## 7. Resumen final
+## 7. Limitaciones
 
-| Propósito | Comando / URL | Descripción |
-|------------|----------------|--------------|
-| Iniciar localmente | `uvicorn api_metricas.main:app --reload` | Acceso solo desde el equipo local |
-| Acceso en LAN | `uvicorn api_metricas.main:app --host 0.0.0.0 --port 8000` | Permite que otros equipos vean la API |
-| URL de documentación | `/docs` | Interfaz Swagger para pruebas |
-| URL de métricas | `/api/metrics/` | JSON con métricas del crawler y scraper |
-| Ver en consola | `curl http://127.0.0.1:8000/api/metrics/ | jq` | Formato legible del JSON |
-| Desplegar globalmente | `ngrok http 8000` o Render.com | Hace accesible la API en Internet |
+- Solo expone un endpoint GET.
+- No incluye autenticación.
+- Depende de los archivos JSON generados por otros módulos.
+
+---
+
+## 8. Resumen rápido
+
+| Acción | Comando |
+|--------|---------|
+| Iniciar API local | uvicorn api_metricas.main:app --reload |
+| Iniciar API en servidor | ./venv/bin/uvicorn api_metricas.main:app --host 0.0.0.0 --port 8080 |
+| Documentación | /docs |
+| Métricas | /api/metrics/ |
