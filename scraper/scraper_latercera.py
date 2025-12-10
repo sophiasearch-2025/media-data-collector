@@ -150,13 +150,101 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
         return [e]
     
 
+def consume_article(ch, method, properties, body):
+    """
+    Función llamada por RabbitMQ cada vez que le llegue un artículo extraido
+    por el crawler para scrapear.
+    """
+
+    starting_time = dtime.now()
+    try:
+        # Cargar el mensaje recibido por RabbitMQ y extraer la URL
+        mensaje = json.loads(body)
+        url = mensaje["url"]
+        print(f"Mensaje recibido en scraper.")
+
+        # Scrapear la URL
+        scraper_results = scrap_news_article(url, validate = True)
+
+        if not isinstance(scraper_results, dict):
+            raise Exception(f"Error en el scraping: { (f'Faltaron los siguientes parámetros críticos: {scraper_results}' if isinstance(scraper_results, list) else scraper_results) }")
+
+        finishing_time = dtime.now()
+
+        # --- mensaje para logs ---
+        # Envío desde scraping_resuls_send()
+        scraping_results_send(
+            url,
+            mensaje["medio"] if ("medio" in mensaje) else "",
+            starting_time,
+            "success",
+            finishing_time,
+            None,
+            scraper_results.get("fecha", None),
+        )
+        print("Mensaje enviado hacia logs desde scraper...")
+
+        # --- mensaje para send_data ---
+        send_data_msg = scraper_results
+        send_data_msg["url"] = url
+
+        # --- publicar mensaje hacia send_data ---
+        scraper_channel.basic_publish(
+            exchange="",
+            routing_key=SEND_DATA_QUEUE,
+            body=json.dumps(send_data_msg),
+            properties=pika.BasicProperties(delivery_mode=2),
+        )
+        print("Mensaje enviado hacia send_data desde scraper...")
+
+    except Exception as e:
+        print(f"Error al scrapear:\n {e}")
+        finishing_time = dtime.now()
+        # Envío desde scraping_results_send
+        scraping_results_send(
+            url,
+            mensaje["medio"] if ("medio" in mensaje) else "",
+            starting_time,
+            "error",
+            finishing_time,
+            str(e),
+        )
+    
+    # --- acknowledge ---
+    ch.basic_ack(delivery_tag=method.delivery_tag)
+
+
+def main():
+    global scraper_channel
+
+    # Conectar con RabbitMQ
+    connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+
+    # Abrir un canal de conexión con RabbitMQ
+    scraper_channel = connection.channel()
+
+    # Definir las colas a escuchar
+    for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
+        scraper_channel.queue_declare(queue=q, durable=True)
+
+
+    scraper_channel.basic_consume(
+        queue=SCRAPER_QUEUE, on_message_callback=consume_article
+    )
+    scraper_channel.start_consuming()
+
+
+if __name__ == "__main__":
+    main()
+
 
 #---- DEBUG ----#
-if __name__ == "__main__":
+def test():
     test_url = "https://www.latercera.com/politica/noticia/exministro-diego-pardow-enfrenta-acusacion-constitucional-en-el-senado/"
     noticia = scrap_news_article(test_url)
     if isinstance(noticia, dict):
         print(json.dumps(noticia, indent=3, ensure_ascii=False))
+
 
 # Links testeados que causaron errores durante el desarrollo
 # 1. https://www.latercera.com/mundo/noticia/carolin-emcke-el-discurso-del-odio-siempre-enmascara-su-propia-brutalidad/ 
