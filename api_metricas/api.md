@@ -32,7 +32,7 @@ http://127.0.0.1:8000
 Podrás acceder a:
 
 - **Swagger UI (documentación interactiva):** http://127.0.0.1:8000/docs  
-- **Métricas (JSON):** http://127.0.0.1:8000/api/metrics/
+- **Métricas (JSON):** http://127.0..1:8000/api/metrics/
 
 Este modo solo es accesible desde tu propio computador (localhost).
 
