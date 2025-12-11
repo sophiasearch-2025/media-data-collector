@@ -1,5 +1,4 @@
 import signal
-import subprocess
 import sys
 import time
 from datetime import datetime as dtime
@@ -30,20 +29,16 @@ class SchedulerStages(Enum):
     SENDING_COMPLETE = auto()
     LOGGING_COMPLETE = auto()
 
-    CRAWLER_FINISHED = auto() # refactorizar por `CRAWLING_COMPLETE`.
-
     # Finalización de tareas
     # para la detención forzada-controlada
     # (Mid-ejecución: por acción de usuario,
     # o bien, por error del scheduler)
     INTERRUPT_RECEIVED = auto()
-    CRAWLING_STOPPED = auto()
-    SCRAPING_STOPPED = auto()
-    SENDING_STOPPED = auto()
-    LOGGING_STOPPED = auto()
+    STOPPING_CRAWLER = auto()
+    STOPPING_SCRAPERS = auto()
+    STOPPING_SENDER = auto()
+    STOPPING_LOGGER = auto()
 
-    SHUTDOWN_SIGNAL_RECEIVED = auto() # suprimir
-    SHUTDOWN_SUBPROCESOS = auto() # suprimir
     SHUTDOWN_COMPLETE = auto()
 
 
@@ -57,15 +52,15 @@ class Scheduler:
         self._stage = SchedulerStages.INIT
 
         # Handlers para las señales de shutdown
-        signal.signal(signal.SIGINT, self._signal_shutdown)
-        signal.signal(signal.SIGTERM, self._signal_shutdown)
+        signal.signal(signal.SIGINT, self._receive_interrupt)
+        signal.signal(signal.SIGTERM, self._receive_interrupt)
 
         # Atributos gestión de procesos
         self._process_manager = ProcessManager(error_callback=self._handle_error)
         self._proc_logger = None
         self._proc_sender = None
         self._proc_crawler = None
-        self._proc_scrapers = []
+        self._proc_scrapers = {}
 
     def _handle_error(self, error_msg):
         """
@@ -86,7 +81,7 @@ class Scheduler:
         self._stage = SchedulerStages.START_LOGGER
         ruta_logger = ev.get_environ_var("LOGGER")
         self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger")
-        time.sleep(1)
+        time.sleep(10)
         try:
             logging_batch_send(self._working_batch_id, "start_batch", dtime.now())
             print("Señal 'start_batch' enviada a RabbitMQ.")
@@ -107,11 +102,12 @@ class Scheduler:
         self._stage = SchedulerStages.START_SCRAPERS
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
+            scraper_id = i+1
             proc = self._process_manager.launch_module(
-                ruta_scraper, f"Scraper {i + 1}"
+                ruta_scraper, f"Scraper {scraper_id}"
             )
             if proc:
-                self._proc_scrapers.append(proc)
+                self._proc_scrapers[scraper_id] = proc
 
     def _get_scraper_module(self):
         """
@@ -130,7 +126,7 @@ class Scheduler:
             )
         return ev.get_environ_var(env_key)
 
-    def orquestar(self):
+    def run(self):
         """
         ******************************************
         Método público para iniciar la ejecución
@@ -153,72 +149,54 @@ class Scheduler:
             self._stage = SchedulerStages.RUNNING_MAIN_LOOP
             while self._running:
                 if self._proc_crawler and self._proc_crawler.poll() is not None:
-                    self._stage = SchedulerStages.CRAWLER_FINISHED
-                    print("Orquestador ha registrado que crawler concluyó sus tareas")
-                    self._shutdown_subprocesos()
-                    break
+                    self._stage = SchedulerStages.CRAWLING_COMPLETE
+                    print("[Scheduler] Ha registrado que Crawler concluyó sus tareas")
+                    self._forceful_stop_subprocesos()
                 time.sleep(1)
 
         except Exception as e:
-            self._handle_error(f"Error crítico en Scheduler: {str(e)}")
-            self._shutdown_subprocesos()
+            self._handle_error(f"[Scheduler] Error crítico en Scheduler: {str(e)}")
+            self._forceful_stop_subprocesos()
 
-    def _signal_shutdown(self, signum, frame):
+    def _receive_interrupt(self, signum, frame):
         """
-        Recibir signal INT/TERM y lanzar shutdown
+        Recibir signal INT/TERM y
+        lanzar `_forceful_stop_subprocesos`
         """
-        self._stage = SchedulerStages.SHUTDOWN_SIGNAL_RECEIVED
         print(
-            f"\nScheduler ha recibido señal {signum} para detener su orquestador. Cerrando..."
+            f"\n[Scheduler] Recibida señal {signum} para detener su orquestador. Cerrando..."
         )
         self._running = False
-        self._shutdown_subprocesos()
+        self._stage = SchedulerStages.INTERRUPT_RECEIVED
+        self._forceful_stop_subprocesos()
 
-    def _shutdown_subprocesos(self):
+    def _forceful_stop_subprocesos(self):
         """
-        Shutdown controlado de los subprocesos.
+        Para la detención forzada-controlada
+        (mid-ejecución),
+        por acción de usuario, o bien, por error
+        del scheduler.
         El logger es lo último que se cierra.
         """
-        self._stage = SchedulerStages.SHUTDOWN_SUBPROCESOS
-        print("Scheduler está cerrando sus subprocesos...")
+        print("[Scheduler] Cerrando subprocesos...")
 
-        procesos_except_logger = []  # a cerrar antes que el logger
+        self._stage = SchedulerStages.STOPPING_CRAWLER
+        self._process_manager.terminate_process(self._proc_crawler, "Crawler")
+        self._stage = SchedulerStages.STOPPING_SCRAPERS
+        for scraper_id, proc in self._proc_scrapers.items():
+            self._process_manager.terminate_process(proc, f"Scraper {scraper_id}")
+        self._stage = SchedulerStages.STOPPING_SENDER
+        self._process_manager.terminate_process(self._proc_sender, "Sender")
 
-        if self._proc_crawler:
-            procesos_except_logger.append(("Crawler", self._proc_crawler))
-        if self._proc_sender:
-            procesos_except_logger.append(("Sender", self._proc_sender))
-        for i, proceso in enumerate(self._proc_scrapers):
-            procesos_except_logger.append((f"Scraper {i+1}", proceso))
-
-        for nombre, proceso in procesos_except_logger:
-            self._kill_subproceso(proceso, nombre)
-
+        self._stage = SchedulerStages.STOPPING_LOGGER
         # Señalizar el fin de logging batch
         try:
             logging_batch_send(self._working_batch_id, "end_batch_received", dtime.now())
         except Exception:
             pass
 
-        if self._proc_logger:
-            self._kill_subproceso(self._proc_logger, "Logger")
+        self._process_manager.terminate_process(self._proc_logger, "Logger", 300) # espera 5 min
 
-        print("Scheduler: Cierre completo.")
+        print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
         sys.exit(0)
-
-    def _kill_subproceso(self, proc, nombre):
-        """
-        Esperar a que el proceso se cierre con
-        normalidad, o bien, forzar con SIGKILL
-        """
-        if proc.poll() is None: # Si sigue vivo
-            print(f" Terminando {nombre}...")
-            try:
-                proc.terminate() # SIGTERM
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                print(f"{nombre} no responde. Forzando kill.")
-                proc.kill() # SIGKILL
-            except Exception as e:
-                print(f" Error cerrando {nombre}: {e}")
