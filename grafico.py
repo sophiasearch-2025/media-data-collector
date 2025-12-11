@@ -36,11 +36,17 @@ async def websocket_endpoint(websocket: WebSocket):
                 with open(crawler_path, "r") as f:
                     data["crawler"] = json.load(f)
             
-            # Métricas del scraper
-            scraper_path = Path("metrics/scraper_metrics.json")
-            if scraper_path.exists():
-                with open(scraper_path, "r") as f:
+            # Progreso del scraper (tiempo real)
+            scraper_progress_path = Path("metrics/scraper_progress.json")
+            if scraper_progress_path.exists():
+                with open(scraper_progress_path, "r") as f:
                     data["scraper"] = json.load(f)
+            
+            # Métricas finales del scraper (generadas por logger al terminar)
+            scraper_metrics_path = Path("metrics/scraper_metrics.json")
+            if scraper_metrics_path.exists():
+                with open(scraper_metrics_path, "r") as f:
+                    data["scraper_final"] = json.load(f)
             
             # Timestamp actual
             data["timestamp"] = datetime.now().isoformat()
@@ -178,10 +184,18 @@ async def dashboard():
         <h1>📊 Dashboard de Scraping - Monitoreo en Tiempo Real</h1>
         
         <div class="status-bar">
-            <div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
                 <strong>Estado de Conexión</strong>
+                <span class="status-badge status-disconnected" id="connection-status">Desconectado</span>
             </div>
-            <span class="status-badge status-disconnected" id="connection-status">Desconectado</span>
+            <div style="display: flex; gap: 0.5rem;">
+                <button onclick="startScheduler()" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    ▶️ Iniciar Scraping
+                </button>
+                <button onclick="stopScheduler()" style="padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    ⏹️ Detener
+                </button>
+            </div>
         </div>
 
         <div class="stats-grid">
@@ -234,10 +248,13 @@ async def dashboard():
 
     <script>
         // Configuración de gráficos
-        const timeLabels = [];
-        const successData = [];
-        const errorData = [];
-        const maxDataPoints = 30;
+        const timeLabels = ['Inicio'];
+        const successData = [0];
+        const errorData = [0];
+        let isFirstUpdate = true;
+        let lastSuccess = 0;
+        let lastErrors = 0;
+        let ignoreUpdates = false;  // Flag para ignorar actualizaciones durante reset
 
         // Gráfico de línea temporal
         const lineCtx = document.getElementById('scrapingChart').getContext('2d');
@@ -310,6 +327,67 @@ async def dashboard():
             }
         });
 
+        // Funciones de control del scheduler
+        async function startScheduler() {
+            try {
+                // Ignorar actualizaciones de WebSocket durante 2 segundos
+                ignoreUpdates = true;
+                
+                // Resetear gráficos
+                timeLabels.length = 0;
+                timeLabels.push('Inicio');
+                successData.length = 0;
+                successData.push(0);
+                errorData.length = 0;
+                errorData.push(0);
+                isFirstUpdate = true;
+                lastSuccess = 0;
+                lastErrors = 0;
+                lineChart.update();
+                pieChart.data.datasets[0].data = [0, 0];
+                pieChart.update();
+                
+                // Iniciar scheduler
+                const response = await fetch('http://localhost:8000/scheduler/start', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ medio: 'biobiochile', num_scrapers: 2 })
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert('✅ Scraping iniciado correctamente');
+                    // Reactivar actualizaciones después de 2 segundos (tiempo para que backend resetee archivos)
+                    setTimeout(() => {
+                        ignoreUpdates = false;
+                    }, 2000);
+                } else {
+                    alert('❌ Error: ' + result.detail);
+                    ignoreUpdates = false; // Reactivar si hubo error
+                }
+            } catch (error) {
+                alert('❌ Error al iniciar: ' + error.message);
+                ignoreUpdates = false; // Reactivar si hubo error
+            }
+        }
+
+        async function stopScheduler() {
+            try {
+                const response = await fetch('http://localhost:8000/scheduler/stop', {
+                    method: 'POST'
+                });
+                
+                const result = await response.json();
+                if (response.ok) {
+                    alert('⏹️ Scraping detenido');
+                } else {
+                    alert('❌ Error: ' + result.detail);
+                }
+            } catch (error) {
+                alert('❌ Error al detener: ' + error.message);
+            }
+        }
+
         // WebSocket
         let ws;
         const statusEl = document.getElementById('connection-status');
@@ -343,6 +421,11 @@ async def dashboard():
         }
 
         function updateDashboard(data) {
+            // Ignorar actualizaciones si estamos en proceso de reset
+            if (ignoreUpdates) {
+                return;
+            }
+            
             // Actualizar estadísticas
             if (data.progress) {
                 document.getElementById('stat-urls').textContent = data.progress.urls_encontradas || 0;
@@ -355,20 +438,30 @@ async def dashboard():
                 document.getElementById('stat-rate').textContent = 
                     (s.articulos_por_minuto || 0).toFixed(1);
                 
-                // Actualizar gráficos
-                const time = new Date().toLocaleTimeString();
-                timeLabels.push(time);
-                successData.push(s.total_articulos_exitosos || 0);
-                errorData.push(s.total_articulos_fallidos || 0);
+                // Actualizar gráficos solo si los datos cambiaron
+                const currentSuccess = s.total_articulos_exitosos || 0;
+                const currentErrors = s.total_articulos_fallidos || 0;
                 
-                // Mantener solo los últimos N puntos
-                if (timeLabels.length > maxDataPoints) {
-                    timeLabels.shift();
-                    successData.shift();
-                    errorData.shift();
+                if (currentSuccess !== lastSuccess || currentErrors !== lastErrors) {
+                    const time = new Date().toLocaleTimeString();
+                    
+                    // Si es la primera actualización real, reemplazar el punto inicial
+                    if (isFirstUpdate) {
+                        timeLabels[0] = time;
+                        successData[0] = currentSuccess;
+                        errorData[0] = currentErrors;
+                        isFirstUpdate = false;
+                    } else {
+                        // Agregar nuevo punto de datos - mantener todo el historial
+                        timeLabels.push(time);
+                        successData.push(currentSuccess);
+                        errorData.push(currentErrors);
+                    }
+                    
+                    lastSuccess = currentSuccess;
+                    lastErrors = currentErrors;
+                    lineChart.update('none');
                 }
-                
-                lineChart.update('none');
                 
                 // Actualizar gráfico de pastel
                 pieChart.data.datasets[0].data = [

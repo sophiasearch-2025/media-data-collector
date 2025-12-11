@@ -21,18 +21,18 @@ sche_channel.queue_declare(queue=LOG_QUEUE, durable=True)
 
 def proceso_send_datos():
     # --- crear el listener de envio de datos ---
-    subprocess.Popen(["python", "RabbitMQ/send_data.py"])
+    subprocess.Popen([sys.executable, "RabbitMQ/send_data.py"])
 
 
 def proceso_scrapper(n):
     # --- crear listener del scraper (el cual espera a mensajes de crawler) ---
     for _ in range(int(n)):
-        subprocess.Popen(["python", "scraper/scraper_biobio.py"])
+        subprocess.Popen([sys.executable, "scraper/scraper_biobio.py"])
 
 
 def proceso_crawler(medio):
     # --- crear listener del crawler ---
-    crawl_process = subprocess.Popen(["python", "Crawler/crawler.py", medio])
+    crawl_process = subprocess.Popen([sys.executable, "Crawler/crawler.py", medio])
     # --- se esperan a los procesos para continuar ---
     crawl_process.wait()
 
@@ -44,7 +44,7 @@ def main():
         starting_time.timestamp()
     )  # identificador distintivo del proceso de logging
     proceso_logging = subprocess.Popen(
-        ["python", "-m", "logger.logger", "--id", str(id_logging_process)]
+        [sys.executable, "-m", "logger.logger", "--id", str(id_logging_process)]
     )
     logging_batch_send(
         id_logging_process, "start_batch", starting_time
@@ -73,11 +73,75 @@ def main():
             proceso_scrapper(n_scrapers)
             stage = "Llamando subproceso crawler"
             proceso_crawler(medio)
+            stage = "Esperando finalización de scrapers"
+            print("[scheduler] Crawler completado. Esperando a que los scrapers terminen...")
+            
+            # Esperar a que la cola de scraper esté vacía
+            import time
+            rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+            rabbit_ch = rabbit_conn.channel()
+            
+            # Primero esperar a que scraper_queue esté vacía
+            while True:
+                queue_state = rabbit_ch.queue_declare(queue="scraper_queue", passive=True)
+                messages_pending = queue_state.method.message_count
+                if messages_pending == 0:
+                    print("[scheduler] Cola de scrapers vacía. Esperando 5 segundos adicionales...")
+                    time.sleep(5)
+                    # Verificar nuevamente por si llegaron más mensajes
+                    queue_state = rabbit_ch.queue_declare(queue="scraper_queue", passive=True)
+                    if queue_state.method.message_count == 0:
+                        break
+                else:
+                    print(f"[scheduler] Esperando... {messages_pending} mensajes pendientes en scraper_queue")
+                    time.sleep(2)
+            
+            # Ahora esperar a que las colas de logging también estén vacías
+            print("[scheduler] Esperando a que las colas de logging se vacíen...")
+            log_queues = ["scraping_log_queue", "crawler_log_queue", "scheduler_log_queue"]
+            max_wait = 60  # máximo 60 segundos esperando las colas de log
+            wait_time = 0
+            
+            while wait_time < max_wait:
+                all_empty = True
+                for queue_name in log_queues:
+                    try:
+                        queue_state = rabbit_ch.queue_declare(queue=queue_name, passive=True)
+                        msg_count = queue_state.method.message_count
+                        if msg_count > 0:
+                            print(f"[scheduler] {msg_count} mensajes pendientes en {queue_name}")
+                            all_empty = False
+                    except Exception as e:
+                        print(f"[scheduler] Error verificando {queue_name}: {e}")
+                
+                if all_empty:
+                    print("[scheduler] Todas las colas de logging vacías!")
+                    break
+                
+                time.sleep(2)
+                wait_time += 2
+            
+            if wait_time >= max_wait:
+                print("[scheduler] ADVERTENCIA: Timeout esperando colas de logging. Continuando de todas formas...")
+            
+            rabbit_ch.close()
+            rabbit_conn.close()
+            
             stage = "Señalizar fin de logging"
+            print("[scheduler] Todos los scrapers completados. Enviando señal de finalización al logger...")
             logging_batch_send(id_logging_process, "end_batch_received", dtime.now())
-            proceso_logging.wait()
+            print("[scheduler] Esperando a que el logger procese los mensajes finales...")
+            proceso_logging.wait(timeout=30)  # Esperar máximo 30 segundos
+            print("[scheduler] Logger finalizado correctamente")
 
         # --- FALLO DEL SCHEDULER ---
+        except subprocess.TimeoutExpired:
+            print("[scheduler] Logger no terminó a tiempo, forzando cierre...")
+            proceso_logging.kill()
+        except KeyboardInterrupt:
+            print("\n[scheduler] Interrupción manual detectada. Finalizando logger...")
+            logging_batch_send(id_logging_process, "end_batch_received", dtime.now())
+            proceso_logging.wait(timeout=10)
         except Exception as e:
             # --- se envia el mensaje de error a "errores y logs" ---
             error_send(
@@ -87,6 +151,12 @@ def main():
                 medio,
                 stage,
             )
+            # Intentar finalizar el logger de todas formas
+            try:
+                logging_batch_send(id_logging_process, "end_batch_received", dtime.now())
+                proceso_logging.wait(timeout=10)
+            except:
+                pass
 
 
 if "__main__" == __name__:

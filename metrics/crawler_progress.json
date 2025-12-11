@@ -1,8 +1,8 @@
 {
   "sitio": "biobiochile",
-  "status": "starting",
-  "total_categorias": 79,
-  "categorias_procesadas": 0,
-  "porcentaje": 0.0,
-  "urls_encontradas": 0
+  "status": "completed",
+  "total_categorias": 78,
+  "categorias_procesadas": 78,
+  "porcentaje": 100.0,
+  "urls_encontradas": 1164
 }

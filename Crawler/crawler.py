@@ -22,6 +22,7 @@ SITES = {
     }
 }
 
+
 async def main():
 
     if len(sys.argv) != 2:
@@ -48,9 +49,35 @@ async def main():
     total_categorias = len(categorias)
     all_news = set()
     categorias = list(categorias)
-
-    news_batch = await crawl_news(config, categorias)
-    all_news.update(news_batch)
+    
+    # Archivo de progreso para tracking en tiempo real
+    os.makedirs("metrics", exist_ok=True)
+    progress_file = "metrics/crawler_progress.json"
+    
+    def update_progress(current, total, status="running"):
+        with open(progress_file, "w", encoding="utf-8") as f:
+            json.dump({
+                "sitio": medio,
+                "status": status,
+                "total_categorias": total,
+                "categorias_procesadas": current,
+                "porcentaje": round((current / total * 100) if total > 0 else 0, 1),
+                "urls_encontradas": len(all_news)
+            }, f, ensure_ascii=False, indent=2)
+    
+    # Inicializar progreso
+    update_progress(0, total_categorias, "starting")
+    
+    # Procesar categorías una por una con actualización de progreso
+    for idx, categoria in enumerate(categorias, 1):
+        news = await crawl_news(config, [categoria], medio)
+        all_news.update(news)
+        
+        update_progress(idx, total_categorias, "running")
+        print(f"📊 Progreso: {idx}/{total_categorias} categorías ({round(idx/total_categorias*100, 1)}%)")
+    
+    # Marcar como completado
+    update_progress(total_categorias, total_categorias, "completed")
     
     # Metricas del crawler
     duracion = time.time() - start_time

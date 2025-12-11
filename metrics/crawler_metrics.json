@@ -1,10 +1,10 @@
 {
     "biobiochile": {
-        "total_categorias": 79,
-        "total_urls_encontradas": 1179,
-        "urls_por_categoria": 14.924,
-        "duracion_segundos": 119.76,
-        "urls_por_minuto": 590.69
+        "total_categorias": 78,
+        "total_urls_encontradas": 1164,
+        "urls_por_categoria": 14.923,
+        "duracion_segundos": 451.02,
+        "urls_por_minuto": 154.85
     },
     "latercera": {
         "total_categorias": 27,

@@ -13,23 +13,29 @@ def get_metrics():
     """Lee las métricas desde los archivos JSON"""
     try:
         crawler_path = BASE_DIR / "crawler_metrics.json"
-        scraper_path = BASE_DIR / "scraper_metrics.json"
-        progress_path = BASE_DIR / "crawler_progress.json"
+        scraper_metrics_path = BASE_DIR / "scraper_metrics.json"
+        scraper_progress_path = BASE_DIR / "scraper_progress.json"
+        crawler_progress_path = BASE_DIR / "crawler_progress.json"
 
-        with open(crawler_path, "r", encoding="utf-8") as f:
-            crawler = json.load(f)
+        result = {}
 
-        with open(scraper_path, "r", encoding="utf-8") as f:
-            scraper = json.load(f)
+        if crawler_path.exists():
+            with open(crawler_path, "r", encoding="utf-8") as f:
+                result["crawler_metrics"] = json.load(f)
 
-        with open(progress_path, "r", encoding="utf-8") as f:
-            progress = json.load(f)
+        if scraper_metrics_path.exists():
+            with open(scraper_metrics_path, "r", encoding="utf-8") as f:
+                result["scraper_metrics"] = json.load(f)
 
-        return {
-            "crawler_metrics": crawler,
-            "scraper_metrics": scraper,
-            "crawler_progress": progress
-        }
+        if scraper_progress_path.exists():
+            with open(scraper_progress_path, "r", encoding="utf-8") as f:
+                result["scraper_progress"] = json.load(f)
 
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="No se encontraron los archivos de métricas")
+        if crawler_progress_path.exists():
+            with open(crawler_progress_path, "r", encoding="utf-8") as f:
+                result["crawler_progress"] = json.load(f)
+
+        return result
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error leyendo métricas: {str(e)}")
