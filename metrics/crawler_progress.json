@@ -1,8 +1,8 @@
 {
-  "sitio": "biobiochile",
-  "status": "completed",
-  "total_categorias": 78,
-  "categorias_procesadas": 78,
-  "porcentaje": 100.0,
-  "urls_encontradas": 1164
+  "sitio": "latercera",
+  "status": "running",
+  "total_categorias": 27,
+  "categorias_procesadas": 4,
+  "porcentaje": 14.8,
+  "urls_encontradas": 156
 }

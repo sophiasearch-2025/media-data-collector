@@ -188,9 +188,12 @@ async def dashboard():
                 <strong>Estado de Conexión</strong>
                 <span class="status-badge status-disconnected" id="connection-status">Desconectado</span>
             </div>
-            <div style="display: flex; gap: 0.5rem;">
-                <button onclick="startScheduler()" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    ▶️ Iniciar Scraping
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                <button onclick="startScheduler('biobiochile')" style="padding: 0.5rem 1rem; background: #10b981; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    ▶️ BioBio Chile
+                </button>
+                <button onclick="startScheduler('latercera')" style="padding: 0.5rem 1rem; background: #3b82f6; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                    ▶️ La Tercera
                 </button>
                 <button onclick="stopScheduler()" style="padding: 0.5rem 1rem; background: #ef4444; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">
                     ⏹️ Detener
@@ -199,6 +202,11 @@ async def dashboard():
         </div>
 
         <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-title">📰 Sitio Actual</div>
+                <div class="stat-value" id="stat-medio" style="font-size: 1.5rem;">-</div>
+                <div class="stat-subtitle">Medio en scraping</div>
+            </div>
             <div class="stat-card">
                 <div class="stat-title">🕷️ URLs Encontradas</div>
                 <div class="stat-value" id="stat-urls">0</div>
@@ -328,7 +336,7 @@ async def dashboard():
         });
 
         // Funciones de control del scheduler
-        async function startScheduler() {
+        async function startScheduler(medio) {
             try {
                 // Ignorar actualizaciones de WebSocket durante 2 segundos
                 ignoreUpdates = true;
@@ -347,16 +355,20 @@ async def dashboard():
                 pieChart.data.datasets[0].data = [0, 0];
                 pieChart.update();
                 
-                // Iniciar scheduler
+                // Actualizar medio en la UI
+                const medioNombre = medio === 'biobiochile' ? 'BioBio Chile' : 'La Tercera';
+                document.getElementById('stat-medio').textContent = medioNombre;
+                
+                // Iniciar scheduler con más scrapers para procesar más rápido
                 const response = await fetch('http://localhost:8000/scheduler/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ medio: 'biobiochile', num_scrapers: 2 })
+                    body: JSON.stringify({ medio: medio, num_scrapers: 4 })
                 });
                 
                 const result = await response.json();
                 if (response.ok) {
-                    alert('✅ Scraping iniciado correctamente');
+                    alert(`✅ Scraping de ${medioNombre} iniciado correctamente`);
                     // Reactivar actualizaciones después de 2 segundos (tiempo para que backend resetee archivos)
                     setTimeout(() => {
                         ignoreUpdates = false;
@@ -429,6 +441,14 @@ async def dashboard():
             // Actualizar estadísticas
             if (data.progress) {
                 document.getElementById('stat-urls').textContent = data.progress.urls_encontradas || 0;
+                
+                // Actualizar nombre del medio
+                if (data.progress.sitio) {
+                    const medioNombre = data.progress.sitio === 'biobiochile' ? 'BioBio Chile' : 
+                                       data.progress.sitio === 'latercera' ? 'La Tercera' : 
+                                       data.progress.sitio;
+                    document.getElementById('stat-medio').textContent = medioNombre;
+                }
             }
             
             if (data.scraper) {
