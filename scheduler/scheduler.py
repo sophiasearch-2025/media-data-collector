@@ -7,6 +7,7 @@ import time
 from datetime import datetime as dtime
 from enum import Enum, auto
 
+from scheduler.processmanager import ProcessManager
 import utils.environ_var as ev
 from logger.queue_sender_generic_error import error_send
 from logger.queue_sender_logger_ctrl import logging_batch_send
@@ -14,17 +15,37 @@ from logger.queue_sender_logger_ctrl import logging_batch_send
 from utils.config_scrapers import SCRAPER_MAP
 
 class SchedulerStages(Enum):
+    # Fases de inicio
     INIT = auto()
     START_LOGGER = auto()
     START_SENDER = auto()
     START_CRAWLER = auto()
     START_SCRAPERS = auto()
 
+    # Ejecución
     RUNNING_MAIN_LOOP = auto()
-    CRAWLER_FINISHED = auto()
 
-    SHUTDOWN_SIGNAL_RECEIVED = auto()
-    SHUTDOWN_SUBPROCESOS = auto()
+    # Finalización de las tareas
+    # para la detención natural
+    CRAWLING_COMPLETE = auto()
+    SCRAPING_COMPLETE = auto()
+    SENDING_COMPLETE = auto()
+    LOGGING_COMPLETE = auto()
+
+    CRAWLER_FINISHED = auto() # refactorizar por `CRAWLING_COMPLETE`.
+
+    # Finalización de tareas
+    # para la detención forzada-controlada
+    # (Mid-ejecución: por acción de usuario,
+    # o bien, por error del scheduler)
+    INTERRUPT_RECEIVED = auto()
+    CRAWLING_STOPPED = auto()
+    SCRAPING_STOPPED = auto()
+    SENDING_STOPPED = auto()
+    LOGGING_STOPPED = auto()
+
+    SHUTDOWN_SIGNAL_RECEIVED = auto() # suprimir
+    SHUTDOWN_SUBPROCESOS = auto() # suprimir
     SHUTDOWN_COMPLETE = auto()
 
 
@@ -42,6 +63,7 @@ class Scheduler:
         signal.signal(signal.SIGTERM, self._signal_shutdown)
 
         # Atributos gestión de procesos
+        self._process_manager = ProcessManager(error_callback=self._handle_error)
         self._proc_logger = None
         self._proc_sender = None
         self._proc_crawler = None
@@ -60,28 +82,12 @@ class Scheduler:
         except Exception as e:
             print(f"Scheduler: Fallo crítico al intentar enviar error a RabbitMQ: {e}")
 
-    def _lanzar_subproceso(self, comando, nombre):
-        """
-        Lanzar proceso con Popen
-        Retorna el objeto Popen o None si falla.
-        """
-        try:
-            proc = subprocess.Popen(comando)
-            print(f"Scheduler ha iniciado {nombre} (PID: {proc.pid})")
-            return proc
-        except Exception as e:
-            msg = f"No se pudo lanzar el subproceso {nombre}. Excepción: {str(e)}"
-            self._handle_error(msg)
-            return None
-
     # --- STARTERS ---
 
     def _start_logger(self, send_start_batch=True):
         self._stage = SchedulerStages.START_LOGGER
         ruta_logger = ev.get_environ_var("LOGGER")
-        self._proc_logger = self._lanzar_subproceso(
-            ["python", "-m", ruta_logger, "--id", str(self._working_batch_id)], "Logger"
-        )
+        self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger")
         time.sleep(1)
         
         # Solo enviar start_batch en el inicio inicial, no en reinicios
@@ -95,23 +101,19 @@ class Scheduler:
     def _start_sender(self):
         self._stage = SchedulerStages.START_SENDER
         ruta_senddata = ev.get_environ_var("SENDDATA")
-        self._proc_sender = self._lanzar_subproceso(
-            ["python", "-m", ruta_senddata], "Sender"
-        )
+        self._proc_sender = self._process_manager.launch_module(ruta_senddata, "Sender")
 
     def _start_crawler(self):
         self._stage = SchedulerStages.START_CRAWLER
         ruta_crawler = ev.get_environ_var("CRAWLER")
-        self._proc_crawler = self._lanzar_subproceso(
-            ["python", ruta_crawler, self._medio], "Crawler"
-        )
+        self._proc_crawler = self._process_manager.launch_script(ruta_crawler, "Crawler")
 
     def _start_scrapers(self):
         self._stage = SchedulerStages.START_SCRAPERS
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
-            proc = self._lanzar_subproceso(
-                ["python", "-m", ruta_scraper], f"Scraper {i + 1}"
+            proc = self._process_manager.launch_module(
+                ruta_scraper, f"Scraper {i + 1}"
             )
             if proc:
                 self._proc_scrapers.append(proc)
@@ -122,7 +124,6 @@ class Scheduler:
         de entorno correspondiente.
         """
         env_key = SCRAPER_MAP.get(self._medio)
-
         if not env_key:
             # Si se escribió mal el nombre del medio
             # o si se escribió uno que no está
@@ -132,7 +133,6 @@ class Scheduler:
                 f"El medio '{self._medio}' no está configurado.\n"
                 f"Medios disponibles: {medios_disponibles}"
             )
-
         return ev.get_environ_var(env_key)
 
     def orquestar(self):
