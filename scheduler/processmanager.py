@@ -59,10 +59,28 @@ class ProcessManager:
             proc.wait(timeout=timeout)
             print(f"[ProcessManager] {name} ha finalizado su ejecución.")
         except subprocess.TimeoutExpired:
-            print(f"[ProcessManager] {name} no responde. Forzando con kill...")
+            print(f"[ProcessManager] {name} no está respondiendo. Forzando con kill...")
             proc.kill()
             proc.wait()
         except Exception as e:
             msg = f"ProcessManager no pudo cerrar el subproceso {name}. Excepción: {str(e)}"
             if self.error_callback:
                 self.error_callback(msg)
+
+    def wait_process_then_terminate(self, proc, name, timeout=10):
+        """
+        Hace el wait SIN ENVIAR el terminate inicial.
+        Si se supera el timeout del wait, entonces
+        llama a terminate_process().
+        """
+        if not proc or proc.poll() is not None:
+            return  # proceso ya muerto
+
+        try:
+            print(f"[ProcessManager] Esperando detención natural de {name}...")
+            proc.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            print(
+                f"[ProcessManager] {name} excedió el tiempo de espera de detención natural."
+            )
+            self.terminate_process(proc, name)
