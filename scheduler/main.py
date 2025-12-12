@@ -10,7 +10,7 @@ def main():
     n_scrapers = int(sys.argv[2])
     scheduler = Scheduler(medio, n_scrapers)
     try:
-        scheduler.orquestar()
+        scheduler.run()
     except KeyboardInterrupt:
         pass
 
