@@ -12,8 +12,8 @@ connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
 # Abrir un canal de conexión con RabbitMQ
 crawler_channel = connection.channel()
 # declarar el canal
-for q in [SCRAPER_QUEUE, LOG_QUEUE]:
-    crawler_channel.queue_declare(queue=q, durable=True)
+crawler_channel.queue_declare(queue=SCRAPER_QUEUE, durable=True)
+crawler_channel.queue_declare(queue=LOG_QUEUE, durable=False, auto_delete=True)
 
 
 def send_link(link, tags, medio=""):

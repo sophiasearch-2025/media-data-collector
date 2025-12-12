@@ -20,8 +20,9 @@ def declare_crawler_log_queue():
         try:
             rabbit_connect = rabbit.get_rabbit_connection()
             rabbit_channel = rabbit_connect.channel()
-            rabbit_channel.queue_declare(CRAWLER_QUEUE_NAME, durable=True)
-            declare_crawler_log_queue._queue_exists = True
+            rabbit_channel.queue_declare(
+                CRAWLER_QUEUE_NAME, durable=False, auto_delete=True, passive=True
+            )
 
         except Exception as e:
             raise RuntimeError(
@@ -43,8 +44,9 @@ def declare_scheduler_log_queue():
         try:
             rabbit_connect = rabbit.get_rabbit_connection()
             rabbit_channel = rabbit_connect.channel()
-            rabbit_channel.queue_declare(SCHEDULER_QUEUE_NAME, durable=True)
-            declare_scheduler_log_queue._queue_exists = True
+            rabbit_channel.queue_declare(
+                SCHEDULER_QUEUE_NAME, durable=False, auto_delete=True, passive=True
+            )
 
         except Exception as e:
             raise RuntimeError(

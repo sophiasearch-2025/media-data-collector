@@ -2,6 +2,7 @@ import argparse
 import time
 import signal
 import sys
+import signal
 
 from logger.logger_service import LoggerService
 from logger.metrics_engine import MetricsEngine
@@ -31,10 +32,9 @@ def signal_handler(signum, frame):
     sys.exit(0)
 
 def main():
-    # Registrar manejadores de señales
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    
+    signal.signal(
+        signal.SIGINT, signal.SIG_IGN
+    )  # scheduler maneja SIGINT, no logger.main
     parser = argparse.ArgumentParser()
     parser.add_argument("--id", type=int, required=True)
     args = parser.parse_args()
@@ -43,19 +43,17 @@ def main():
     conn = rabbitmq_utils.get_rabbit_connection()
     channel = conn.channel()
 
-    try:
-        # Iniciar Logger
-        logger = LoggerService(working_batch_id=args.id, channel=channel)
-        logger.run()  # Esto bloquea hasta que termine
-        
-        # Si terminó normalmente (no por señal), generar métricas
-        generate_final_metrics()
-    finally:
-        print("[Logger Main] Logger finalizado")
-        try:
-            conn.close()
-        except:
-            pass
+    # Iniciar Logger
+    logger = LoggerService(working_batch_id=args.id, channel=channel)
+    logger.run()  # Esto bloquea hasta que termine
+
+    # Al finalizar, calcular métricas
+    print("[Logger] Generando métricas con MetricsEngine...")
+    metrics = MetricsEngine()
+    metrics.calculate_scraping_metrics()
+    print("[Logger] Métricas generadas.")
+
+    conn.close()
 
 
 if __name__ == "__main__":

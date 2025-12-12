@@ -64,8 +64,10 @@ class LoggerService:
         Declarar las colas antes de empezar a consumir
         """
         for queue in self._basic_queue_to_key.keys():
-            self._channel.queue_declare(queue=queue, durable=True)
-        self._channel.queue_declare(queue=self._control_queue, durable=True)
+            self._channel.queue_declare(queue=queue, durable=False, auto_delete=True)
+        self._channel.queue_declare(
+            queue=self._control_queue, durable=False, auto_delete=True
+        )
 
     def _handle_log_message(self, ch, method, properties, body, redis_key):
         """
