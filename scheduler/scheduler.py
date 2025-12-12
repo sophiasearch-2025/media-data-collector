@@ -81,7 +81,8 @@ class Scheduler:
     def _start_logger(self, send_start_batch=True):
         self._stage = SchedulerStages.START_LOGGER
         ruta_logger = ev.get_environ_var("LOGGER")
-        self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger")
+        args = ["--id", self._working_batch_id]
+        self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger", args)
         time.sleep(10)
         if send_start_batch: # solo enviar start_batch en el primer launch, no en reinicios
             try:
