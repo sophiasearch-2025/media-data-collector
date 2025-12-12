@@ -1,11 +1,11 @@
 import json
 import os
 import sys
-from datetime import datetime as dtime
 import time
+from datetime import datetime as dtime
 
 # Bloqueo de archivos
-if os.name == "nt": # Windows
+if os.name == "nt":  # Windows
     import msvcrt
 
     def file_lock(f):
@@ -13,7 +13,7 @@ if os.name == "nt": # Windows
 
     def file_unlock(f):
         msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
-else:   # Linux/Unix/MacOS
+else:  # Linux/Unix/MacOS
     import fcntl
 
     def file_lock(f):
@@ -27,20 +27,20 @@ else:   # Linux/Unix/MacOS
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, PROJECT_ROOT)
 
-from scraper.scraping_utils import (
-    extract, 
-    extract_body, 
-    extract_images, 
-    extract_text_only
-)
+from pathlib import Path
 
 import pika
 import requests
 from bs4 import BeautifulSoup
-from pathlib import Path
 
 # Importa scraping_results_send() desde logger/
 from logger.queue_sender_scraper_results import scraping_results_send
+from scraper.scraping_utils import (
+    extract,
+    extract_body,
+    extract_images,
+    extract_text_only,
+)
 
 SCRAPER_QUEUE = "scraper_queue"
 LOG_QUEUE = "scraping_log_queue"
@@ -51,7 +51,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
     """Actualiza las métricas del scraper en tiempo real con file locking"""
     progress_file = Path("metrics/scraper_progress.json")
     progress_file.parent.mkdir(exist_ok=True)
-    
+
     # Usar file locking para evitar race conditions entre múltiples scrapers
     max_retries = 5
     for attempt in range(max_retries):
@@ -59,7 +59,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
             with open(progress_file, "r+", encoding="utf-8") as f:
                 # Adquirir lock exclusivo
                 file_lock(f)
-                
+
                 try:
                     # Leer métricas existentes
                     f.seek(0)
@@ -71,56 +71,70 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                 except (json.JSONDecodeError, ValueError):
                     # Archivo corrupto, reiniciar
                     metrics = {}
-                
+
                 # Asegurar que todos los campos existan
                 metrics.setdefault("total_articulos_exitosos", 0)
                 metrics.setdefault("total_articulos_fallidos", 0)
                 metrics.setdefault("duracion_promedio_ms", 0)
                 metrics.setdefault("articulos_por_minuto", 0)
                 metrics.setdefault("ultima_actualizacion", "")
-                metrics.setdefault("start_time", dtime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                
+                metrics.setdefault(
+                    "start_time", dtime.now().strftime("%Y-%m-%d %H:%M:%S")
+                )
+
                 # Actualizar contadores
-                total_procesados = metrics["total_articulos_exitosos"] + metrics["total_articulos_fallidos"]
-                
+                total_procesados = (
+                    metrics["total_articulos_exitosos"]
+                    + metrics["total_articulos_fallidos"]
+                )
+
                 if status == "success":
                     metrics["total_articulos_exitosos"] += 1
                 else:
                     metrics["total_articulos_fallidos"] += 1
-                
+
                 # Actualizar duración promedio
                 if duration_ms > 0:
                     current_avg = metrics["duracion_promedio_ms"]
                     metrics["duracion_promedio_ms"] = round(
-                        (current_avg * total_procesados + duration_ms) / (total_procesados + 1),
-                        2
+                        (current_avg * total_procesados + duration_ms)
+                        / (total_procesados + 1),
+                        2,
                     )
-                
+
                 # Calcular artículos por minuto usando start_time del archivo
                 start_time = dtime.strptime(metrics["start_time"], "%Y-%m-%d %H:%M:%S")
                 elapsed_time = (dtime.now() - start_time).total_seconds() / 60
                 if elapsed_time > 0:
                     metrics["articulos_por_minuto"] = round(
-                        (metrics["total_articulos_exitosos"] + metrics["total_articulos_fallidos"]) / elapsed_time,
-                        2
+                        (
+                            metrics["total_articulos_exitosos"]
+                            + metrics["total_articulos_fallidos"]
+                        )
+                        / elapsed_time,
+                        2,
                     )
-                
-                metrics["ultima_actualizacion"] = dtime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
+
+                metrics["ultima_actualizacion"] = dtime.now().strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+
                 # Escribir métricas actualizadas
                 f.seek(0)
                 f.truncate()
                 json.dump(metrics, f, ensure_ascii=False, indent=2)
-                
+
                 # Liberar lock (automático al cerrar, pero explícito por claridad)
                 file_unlock(f)
                 break
-                
+
         except IOError as e:
             if attempt < max_retries - 1:
                 time.sleep(0.1)  # Esperar un poco antes de reintentar
             else:
-                print(f"Error actualizando métricas después de {max_retries} intentos: {e}")
+                print(
+                    f"Error actualizando métricas después de {max_retries} intentos: {e}"
+                )
         except FileNotFoundError:
             # Crear archivo si no existe
             with open(progress_file, "w", encoding="utf-8") as f:
@@ -131,7 +145,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                     "duracion_promedio_ms": duration_ms,
                     "articulos_por_minuto": 0,
                     "ultima_actualizacion": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 }
                 json.dump(initial_metrics, f, ensure_ascii=False, indent=2)
                 file_unlock(f)
@@ -268,7 +282,9 @@ def consume_article(ch, method, properties, body):
 
         # Si devuelve una lista, detengo el proceso con un error
         if not isinstance(scraper_results, dict):
-            raise Exception(f"Error en el scraping: { (f'Faltaron los siguientes parámetros críticos: {scraper_results}' if isinstance(scraper_results, list) else scraper_results) }")
+            raise Exception(
+                f"Error en el scraping: {(f'Faltaron los siguientes parámetros críticos: {scraper_results}' if isinstance(scraper_results, list) else scraper_results)}"
+            )
 
         finishing_time = dtime.now()
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
@@ -304,10 +320,10 @@ def consume_article(ch, method, properties, body):
         print(f"Error al scrapear:\n {e}")
         finishing_time = dtime.now()
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
-        
+
         # --- Actualizar métricas en tiempo real ---
         update_scraper_metrics("error", duration_ms)
-        
+
         # Envío desde scraping_results_send
         scraping_results_send(
             url,
@@ -332,9 +348,9 @@ def main():
     scraper_channel = connection.channel()
 
     # Definir las colas a escuchar
-    for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
+    for q in [SCRAPER_QUEUE, SEND_DATA_QUEUE]:
         scraper_channel.queue_declare(queue=q, durable=True)
-
+    scraper_channel.queue_declare(queue=LOG_QUEUE, auto_delete=True)
 
     scraper_channel.basic_consume(
         queue=SCRAPER_QUEUE, on_message_callback=consume_article
