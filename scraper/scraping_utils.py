@@ -25,7 +25,7 @@ def extract(
 def extract_multiple(
     soup: BeautifulSoup, 
     selectors: list, 
-    default = None
+    default = ""
 ) -> list:
     """
     Recorre selectores de contenido para construir una lista con los múltiples
