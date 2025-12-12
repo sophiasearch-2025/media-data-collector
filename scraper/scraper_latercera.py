@@ -410,9 +410,9 @@ def main():
     # Abrir un canal de conexión con RabbitMQ
     scraper_channel = connection.channel()
 
-    # Definir las colas a escuchar
+    # Definir las colas a escuchar (durable=False para coincidir con logger)
     for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
-        scraper_channel.queue_declare(queue=q, durable=True)
+        scraper_channel.queue_declare(queue=q, durable=False, auto_delete=True)
 
 
     scraper_channel.basic_consume(

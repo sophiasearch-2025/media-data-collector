@@ -15,8 +15,8 @@ LOG_QUEUE = "scheduler_log_queue"
 # --- bloque para la conexion global de RabbitMQ ---
 connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
 sche_channel = connection.channel()
-# --- declaración de la cola de error ---
-sche_channel.queue_declare(queue=LOG_QUEUE, durable=True)
+# --- declaración de la cola de error (durable=False para coincidir con logger) ---
+sche_channel.queue_declare(queue=LOG_QUEUE, durable=False, auto_delete=True)
 
 
 def proceso_send_datos():

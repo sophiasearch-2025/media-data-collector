@@ -8,8 +8,8 @@ SEND_DATA_QUEUE = "send_data_queue"
 # --- bloque para la conexion global de RabbitMQ ---
 connection = pika.BlockingConnection(pika.ConnectionParameters('localhost'))
 planner_channel = connection.channel()
-# --- declaración de colas ---
-planner_channel.queue_declare(queue=SEND_DATA_QUEUE, durable=True)
+# --- declaración de colas (durable=False para coincidir con logger) ---
+planner_channel.queue_declare(queue=SEND_DATA_QUEUE, durable=False, auto_delete=True)
 
 def callback(ch, method, properties, body):
     message = json.loads(body)

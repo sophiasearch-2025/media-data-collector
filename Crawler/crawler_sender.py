@@ -11,8 +11,8 @@ LOG_QUEUE = "crawler_log_queue"
 connection = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
 # Abrir un canal de conexión con RabbitMQ
 crawler_channel = connection.channel()
-# declarar el canal
-crawler_channel.queue_declare(queue=SCRAPER_QUEUE, durable=True)
+# declarar el canal (durable=False para consistencia con logger)
+crawler_channel.queue_declare(queue=SCRAPER_QUEUE, durable=False, auto_delete=True)
 crawler_channel.queue_declare(queue=LOG_QUEUE, durable=False, auto_delete=True)
 
 

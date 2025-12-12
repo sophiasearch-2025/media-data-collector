@@ -39,9 +39,18 @@ def initialize_scraper_progress(medio):
     max_retries = 5
     for attempt in range(max_retries):
         try:
-            # Usar 'a+' para crear si no existe, o abrir si existe
-            with open(progress_file, "a+", encoding="utf-8") as f:
-                # Adquirir lock exclusivo
+            # Verificar si el archivo existe
+            file_exists = os.path.exists(progress_file)
+            
+            if file_exists:
+                # Archivo existe, usar r+ para no crear uno nuevo
+                mode = "r+"
+            else:
+                # Archivo no existe, usar w+ para crearlo
+                mode = "w+"
+            
+            with open(progress_file, mode, encoding="utf-8") as f:
+                # Adquirir lock exclusivo ANTES de leer
                 file_lock(f)
                 
                 try:
@@ -69,8 +78,9 @@ def initialize_scraper_progress(medio):
                 f.seek(0)
                 f.truncate()
                 json.dump(existing_progress, f, ensure_ascii=False, indent=2)
+                f.flush()  # Forzar escritura inmediata
                 
-                # Liberar lock (automático al cerrar)
+                # Liberar lock explícitamente antes de cerrar
                 file_unlock(f)
                 
             print(f"[scheduler_queue_utils] Archivo {progress_file} inicializado para medio '{medio}'")

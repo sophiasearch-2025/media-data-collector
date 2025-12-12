@@ -1,10 +1,10 @@
 {
-  "latercera": {
-    "total_articulos_exitosos": 432,
+  "biobiochile": {
+    "total_articulos_exitosos": 1164,
     "total_articulos_fallidos": 0,
-    "duracion_promedio_ms": 789.75,
-    "articulos_por_minuto": 133.22,
-    "ultima_actualizacion": "2025-12-12 15:25:08",
-    "start_time": "2025-12-12 15:21:54"
+    "duracion_promedio_ms": 691.69,
+    "articulos_por_minuto": 172.71,
+    "ultima_actualizacion": "2025-12-12 15:55:19",
+    "start_time": "2025-12-12 15:48:35"
   }
 }
