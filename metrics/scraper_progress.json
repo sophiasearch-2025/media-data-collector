@@ -1,8 +1,8 @@
 {
-  "total_articulos_exitosos": 775,
-  "total_articulos_fallidos": 389,
-  "duracion_promedio_ms": 1472.18,
-  "articulos_por_minuto": 81.38,
-  "ultima_actualizacion": "2025-12-11 17:12:12",
-  "start_time": "2025-12-11 16:57:54"
+  "total_articulos_exitosos": 51,
+  "total_articulos_fallidos": 0,
+  "duracion_promedio_ms": 1075.53,
+  "articulos_por_minuto": 237.92,
+  "ultima_actualizacion": "2025-12-11 19:43:47",
+  "start_time": "2025-12-11 19:43:35"
 }

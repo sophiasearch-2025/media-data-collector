@@ -77,9 +77,10 @@ async def start_scheduler(request: CrawlerStartRequest):
         
         # Iniciar scheduler que maneja crawler + scrapers
         scheduler_status = subprocess.Popen(
-            [python_exec, os.path.join(PROJECT_ROOT, "RabbitMQ", "scheduler.py"), 
+            [python_exec, "-m", "scheduler.main", 
              request.medio, str(request.num_scrapers)],
-            env=env
+            env=env,
+            cwd=PROJECT_ROOT
         )
         
         return {
@@ -101,27 +102,55 @@ async def stop_scheduler():
     
     try:
         import signal
-        
-        # Matar todos los procesos relacionados usando pkill
-        subprocess.run(["pkill", "-TERM", "-f", "scheduler.py"], check=False)
-        subprocess.run(["pkill", "-TERM", "-f", "crawler.py"], check=False)
-        subprocess.run(["pkill", "-TERM", "-f", "scraper_biobio.py"], check=False)
-        subprocess.run(["pkill", "-TERM", "-f", "send_data.py"], check=False)
-        subprocess.run(["pkill", "-TERM", "-f", "logger.py"], check=False)
-        
-        # Esperar un poco
         import time
-        time.sleep(2)
         
-        # Si aún quedan procesos, forzar kill
-        subprocess.run(["pkill", "-9", "-f", "scheduler.py"], check=False)
-        subprocess.run(["pkill", "-9", "-f", "crawler.py"], check=False)
-        subprocess.run(["pkill", "-9", "-f", "scraper_biobio.py"], check=False)
-        subprocess.run(["pkill", "-9", "-f", "send_data.py"], check=False)
-        subprocess.run(["pkill", "-9", "-f", "logger.py"], check=False)
+        # El nuevo scheduler maneja SIGTERM/SIGINT correctamente
+        # Enviar SIGTERM al proceso principal (scheduler)
+        print(f"Enviando SIGTERM al scheduler (PID: {scheduler_status.pid})")
+        scheduler_status.send_signal(signal.SIGTERM)
+        
+        # Esperar a que termine gracefully (máximo 180 segundos - 3 minutos)
+        # El scheduler puede estar esperando que colas se vacíen
+        try:
+            scheduler_status.wait(timeout=180)
+            print("Scheduler detenido correctamente")
+        except subprocess.TimeoutExpired:
+            print("Scheduler no respondió a SIGTERM en 3 minutos, forzando con SIGKILL")
+            scheduler_status.kill()
+            scheduler_status.wait()
         
         scheduler_status = None
-        return {"status": "stopped"}
+        
+        # Limpiar colas de RabbitMQ después de detener
+        try:
+            import pika
+            print("Limpiando colas de RabbitMQ...")
+            rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
+            rabbit_ch = rabbit_conn.channel()
+            
+            queues_to_purge = [
+                "scraper_queue",
+                "scraping_log_queue",
+                "crawler_log_queue",
+                "scheduler_log_queue",
+                "logging_control_queue",
+                "send_data_queue"
+            ]
+            
+            for queue_name in queues_to_purge:
+                try:
+                    result = rabbit_ch.queue_purge(queue=queue_name)
+                    print(f"  - {queue_name}: {result.method.message_count} mensajes eliminados")
+                except Exception as e:
+                    print(f"  - Error limpiando {queue_name}: {e}")
+            
+            rabbit_ch.close()
+            rabbit_conn.close()
+            print("Colas limpiadas correctamente")
+        except Exception as e:
+            print(f"Advertencia: No se pudieron limpiar las colas: {e}")
+        
+        return {"status": "stopped", "queues_purged": True}
         
     except Exception as e:
         scheduler_status = None

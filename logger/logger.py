@@ -18,80 +18,96 @@ LOGGER_CTRL = "logging_control"
 
 def callback_crawler(id_logging_process: int):
     def callback(ch, method, properties, body):
-        msg = json.loads(body)
-        msg["id_logging_process"] = id_logging_process
-        logs_operations.anexar_log(msg, CRAWLER_ERRORS)
-        print(f"[crawler_log_queue] Mensaje recibido: {msg}")
-
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        try:
+            msg = json.loads(body)
+            msg["id_logging_process"] = id_logging_process
+            logs_operations.anexar_log(msg, CRAWLER_ERRORS)
+            print(f"[crawler_log_queue] Mensaje recibido: {msg}")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            print(f"[crawler_log_queue] ERROR procesando mensaje: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     return callback
 
 
 def callback_scheduler(id_logging_process: int):
     def callback(ch, method, properties, body):
-        msg = json.loads(body)
-        msg["id_logging_process"] = id_logging_process
-        logs_operations.anexar_log(msg, SCHEDULER_ERRORS)
-        print(f"[scheduler_log_queue] Mensaje recibido: {msg}")
-
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        try:
+            msg = json.loads(body)
+            msg["id_logging_process"] = id_logging_process
+            logs_operations.anexar_log(msg, SCHEDULER_ERRORS)
+            print(f"[scheduler_log_queue] Mensaje recibido: {msg}")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            print(f"[scheduler_log_queue] ERROR procesando mensaje: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     return callback
 
 
 def callback_scraping(id_logging_process: int):
     def callback(ch, method, properties, body):
-        msg = json.loads(body)
-        msg["id_logging_process"] = id_logging_process
-        logs_operations.anexar_log(msg, SCRAPING_RESULTS)
-        print(f"[scraping_log_queue] Mensaje recibido: {msg}")
-
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+        try:
+            msg = json.loads(body)
+            msg["id_logging_process"] = id_logging_process
+            logs_operations.anexar_log(msg, SCRAPING_RESULTS)
+            print(f"[scraping_log_queue] Mensaje recibido: {msg}")
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            print(f"[scraping_log_queue] ERROR procesando mensaje: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     return callback
 
 
 def callback_control(id_logging_process: int, state):
     def callback(ch, method, properties, body):
-        msg = json.loads(body)
+        try:
+            msg = json.loads(body)
 
-        # Si escuchó que se está iniciando una nueva tanda de scrapeo,
-        # limpia logs anteriores
-        if msg.get("action") == "start_batch":
-            for lista in [
-                CRAWLER_ERRORS,
-                SCHEDULER_ERRORS,
-                SCRAPING_RESULTS,
-                LOGGER_CTRL,
-            ]:
-                logs_operations.clear_logs_list(lista)
+            # Si escuchó que se está iniciando una nueva tanda de scrapeo,
+            # limpia logs anteriores
+            if msg.get("action") == "start_batch":
+                for lista in [
+                    CRAWLER_ERRORS,
+                    SCHEDULER_ERRORS,
+                    SCRAPING_RESULTS,
+                    LOGGER_CTRL,
+                ]:
+                    logs_operations.clear_logs_list(lista)
 
-        if msg.get("action") == "end_batch_received":
-            print(
-                "[logging_control] end_batch_received (se recibió señal para concluir logging). Cerrando el proceso de loggeo y esperando los últimos resultados de scrapeo o mensajes..."
-            )
-            # Cambia estado interno
-            state["terminating"] = True
-            try:
-                # Detener el loop de consuming para que el flujo principal continúe
-                ch.stop_consuming()
-            except Exception:
-                pass
+            if msg.get("action") == "end_batch_received":
+                print(
+                    "[logging_control] end_batch_received (se recibió señal para concluir logging). Cerrando el proceso de loggeo y esperando los últimos resultados de scrapeo o mensajes..."
+                )
+                # Cambia estado interno
+                state["terminating"] = True
+                try:
+                    # Detener el loop de consuming para que el flujo principal continúe
+                    ch.stop_consuming()
+                except Exception:
+                    pass
 
-        logs_operations.anexar_log(msg, LOGGER_CTRL)
-
-        ch.basic_ack(delivery_tag=method.delivery_tag)
+            logs_operations.anexar_log(msg, LOGGER_CTRL)
+            ch.basic_ack(delivery_tag=method.delivery_tag)
+        except Exception as e:
+            print(f"[logging_control_queue] ERROR procesando mensaje: {e}")
+            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
 
     return callback
 
 
 def queues_empty(channel, log_queues):
-    for q in log_queues:
-        q_state = channel.queue_declare(queue=q, passive=True)
-        if q_state.method.message_count != 0:
-            return False
-    return True
+    try:
+        for q in log_queues:
+            q_state = channel.queue_declare(queue=q, passive=True)
+            if q_state.method.message_count != 0:
+                return False
+        return True
+    except Exception as e:
+        print(f"[logger] Error verificando colas: {e}")
+        return False  # Asumir no vacías si hay error
 
 
 def main():
@@ -138,9 +154,12 @@ def main():
     # loop de escucha/consuming
     try:
         rabbit_channel.start_consuming()
+    except KeyboardInterrupt:
+        print("[logger] Interrupción manual detectada")
+        rabbit_channel.stop_consuming()
     except Exception as e:
-        print("Error al tratar de recibir mensajes en RabbitMQ")
-        raise RuntimeError(f"Error al consumir mensajes en RabbitMQ: {e}") from e
+        print(f"[logger] Error al consumir mensajes en RabbitMQ: {e}")
+        # No hacer raise, simplemente continuar con el cierre
 
     if state["terminating"]:
         print("[logger] Concluyendo últimos mensajes de loggeo")
@@ -149,11 +168,22 @@ def main():
         from datetime import datetime
 
         # esperar que colas estén vacías
-        while not queues_empty(rabbit_channel, log_queues):
+        try:
+            timeout = 300  # 5 minutos máximo
+            elapsed = 0
+            while not queues_empty(rabbit_channel, log_queues) and elapsed < timeout:
+                time.sleep(0.5)
+                elapsed += 0.5
+            
+            if elapsed >= timeout:
+                print(f"[logger] ADVERTENCIA - Timeout esperando colas vacías después de {timeout}s")
+            else:
+                print("[logger] Todas las colas en log_queues están vacías. Cerrando logger.")
+            
             time.sleep(0.5)
-        print("[logger] Todas las colas en log_queues están vacías. Cerrando logger.")
-        time.sleep(0.5)
-        rabbit_channel.stop_consuming()
+            rabbit_channel.stop_consuming()
+        except Exception as e:
+            print(f"[logger] Error esperando colas vacías: {e}")
 
         # registrar final de cierre y anexar directamente en los logs de redis
         
