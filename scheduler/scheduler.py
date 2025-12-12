@@ -8,7 +8,6 @@ from logger.queue_sender_generic_error import error_send
 from logger.queue_sender_logger_ctrl import logging_batch_send
 from scheduler.processmanager import ProcessManager
 from scheduler.scheduler_queue_utils import (
-    wait_for_logging_queues_empty,
     wait_for_scraper_queue_empty,
 )
 from utils.config_scrapers import SCRAPER_MAP
@@ -113,11 +112,12 @@ class Scheduler:
 
     def _start_scrapers(self):
         self._stage = SchedulerStages.START_SCRAPERS
-        
+
         # Inicializar archivo de progreso antes de lanzar scrapers
         from scheduler.scheduler_queue_utils import initialize_scraper_progress
+
         initialize_scraper_progress(self._medio)
-        
+
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
             scraper_id = i + 1
@@ -221,8 +221,8 @@ class Scheduler:
         self._process_manager.terminate_process(self._proc_sender, "Sender")
 
         self._stage = SchedulerStages.STOPPING_LOGGER
-        # Señalizar el fin de logging batch
-        # Señalizar al logger que debe empezar a cerrar (antes de esperar colas)
+
+        # Señalizar al logger que debe empezar a cerrar
         if not self._end_batch_signal_sent:
             try:
                 logging_batch_send(
@@ -233,17 +233,19 @@ class Scheduler:
             except Exception as e:
                 print(f"[Scheduler] Error enviando end_batch_received: {e}")
 
-        # Ahora que los scrapers están muertos y logger sabe que debe cerrar,
-        # esperar que las colas de logging se vacíen
-        print("[Scheduler] Esperando que logger procese mensajes restantes...")
-        wait_for_logging_queues_empty(self._proc_logger, self)
-
-        # Dar tiempo al logger para cerrar por su cuenta
-        print("[Scheduler] Esperando 15 segundos para que logger cierre solo...")
-        time.sleep(15)
-        if self._proc_logger and self._proc_logger.poll() is None:
-            print("[Scheduler] Logger aún activo, terminándolo...")
-            self._process_manager.terminate_process(self._proc_logger, "Logger")
+        if self._proc_logger:
+            self._process_manager.wait_process_then_terminate(
+                self._proc_logger, "Logger", 300
+            )
 
         print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
+
+
+"""
+13.51
+TODO: Revisar cruce de responsabilidades.
+Scheduler debería delegar la finalización a cada proceso,
+que cada subproceso se encargue de su limpieza interna y no
+responsabilizar al planificador de ese micromanagement.
+"""
