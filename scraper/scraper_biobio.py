@@ -249,7 +249,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
 
     except Exception as e:
         print(f"Error al scrapear la siguiente url:\n{url}\nDetalle: {e}")
-        return [e]
+        return e
 
 
 def consume_article(ch, method, properties, body):
