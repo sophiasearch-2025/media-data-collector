@@ -24,9 +24,7 @@ def declare_logging_ctrl_queue():
                     "No se ha podido conectar a RabbitMQ. rabbit_connect is None."
                 )
             rabbit_channel = rabbit_connect.channel()
-            rabbit_channel.queue_declare(
-                QUEUE_NAME, durable=False, auto_delete=True, passive=True
-            )
+            rabbit_channel.queue_declare(QUEUE_NAME, durable=False, auto_delete=True)
 
         except Exception as e:
             raise RuntimeError(
