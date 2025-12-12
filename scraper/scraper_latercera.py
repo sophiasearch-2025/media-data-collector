@@ -5,6 +5,8 @@ from datetime import datetime as dtime
 import time
 from pathlib import Path
 
+from utils.stop_signal_handler import StopSignalHandler
+
 # Bloqueo de archivos
 if os.name == "nt": # Windows
     import msvcrt
@@ -25,10 +27,10 @@ else:   # Linux/Unix/MacOS
 
 
 from scraper.scraping_utils import (
-    extract, 
-    extract_body, 
-    extract_datetime, 
-    extract_videos, 
+    extract,
+    extract_body,
+    extract_datetime,
+    extract_videos,
     extract_body_video,
     extract_image_with_description,
     extract_filtered_body,
@@ -56,7 +58,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
     """Actualiza las métricas del scraper en tiempo real con file locking (por medio)"""
     progress_file = Path("metrics/scraper_progress.json")
     progress_file.parent.mkdir(exist_ok=True)
-    
+
     # Usar file locking para evitar race conditions entre múltiples scrapers
     max_retries = 5
     for attempt in range(max_retries):
@@ -64,7 +66,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
             with open(progress_file, "r+", encoding="utf-8") as f:
                 # Adquirir lock exclusivo
                 file_lock(f)
-                
+
                 try:
                     # Leer métricas existentes (estructura por medio)
                     f.seek(0)
@@ -76,13 +78,13 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                 except (json.JSONDecodeError, ValueError):
                     # Archivo corrupto, reiniciar
                     all_metrics = {}
-                
+
                 # Obtener o crear métricas para este medio
                 if medio not in all_metrics:
                     all_metrics[medio] = {}
-                
+
                 metrics = all_metrics[medio]
-                
+
                 # Asegurar que todos los campos existan
                 metrics.setdefault("total_articulos_exitosos", 0)
                 metrics.setdefault("total_articulos_fallidos", 0)
@@ -90,15 +92,15 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                 metrics.setdefault("articulos_por_minuto", 0)
                 metrics.setdefault("ultima_actualizacion", "")
                 metrics.setdefault("start_time", dtime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                
+
                 # Actualizar contadores
                 total_procesados = metrics["total_articulos_exitosos"] + metrics["total_articulos_fallidos"]
-                
+
                 if status == "success":
                     metrics["total_articulos_exitosos"] += 1
                 else:
                     metrics["total_articulos_fallidos"] += 1
-                
+
                 # Actualizar duración promedio
                 if duration_ms > 0:
                     current_avg = metrics["duracion_promedio_ms"]
@@ -106,7 +108,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                         (current_avg * total_procesados + duration_ms) / (total_procesados + 1),
                         2
                     )
-                
+
                 # Calcular artículos por minuto usando start_time del archivo
                 start_time = dtime.strptime(metrics["start_time"], "%Y-%m-%d %H:%M:%S")
                 elapsed_time = (dtime.now() - start_time).total_seconds() / 60
@@ -115,21 +117,21 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                         (metrics["total_articulos_exitosos"] + metrics["total_articulos_fallidos"]) / elapsed_time,
                         2
                     )
-                
+
                 metrics["ultima_actualizacion"] = dtime.now().strftime("%Y-%m-%d %H:%M:%S")
-                
+
                 # Guardar de vuelta la estructura completa
                 all_metrics[medio] = metrics
-                
+
                 # Escribir métricas actualizadas
                 f.seek(0)
                 f.truncate()
                 json.dump(all_metrics, f, ensure_ascii=False, indent=2)
-                
+
                 # Liberar lock (automático al cerrar, pero explícito por claridad)
                 file_unlock(f)
                 break
-                
+
         except IOError as e:
             if attempt < max_retries - 1:
                 time.sleep(0.1)  # Esperar un poco antes de reintentar
@@ -142,13 +144,13 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                     file_lock(f)
                     f.seek(0)
                     content = f.read()
-                    
+
                     if content.strip():
                         # Otro scraper ya lo creó, reintentar lectura
                         file_unlock(f)
                         time.sleep(0.05)
                         continue
-                    
+
                     # Realmente está vacío, inicializar con estructura por medio
                     initial_metrics = {
                         medio: {
@@ -198,31 +200,31 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
                 "time.article-body__byline__date",
             ],
         )
-        
+
         # Convertir fecha ISO a formato legible en español (como BioBio)
         if fecha:
             try:
                 # Parsear fecha ISO 8601 (ej: "2025-12-08T09:01:00Z")
                 # Limpiar la 'Z' al final si existe
                 fecha_limpia = fecha.replace('Z', '+00:00') if fecha.endswith('Z') else fecha
-                
+
                 # Parsear con datetime estándar
                 if 'T' in fecha_limpia:
                     dt = dtime.fromisoformat(fecha_limpia)
                 else:
                     # Si no es ISO, intentar otros formatos comunes
                     dt = dtime.strptime(fecha, "%Y-%m-%d")
-                
+
                 # Mapear días y meses al español
                 dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
-                meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", 
+                meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio",
                          "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"]
-                
+
                 dia_semana = dias[dt.weekday()]
                 dia = dt.day
                 mes = meses[dt.month - 1]
                 año = dt.year
-                
+
                 fecha = f"{dia_semana} {dia:02d} {mes} de {año}"
             except Exception as e:
                 # Si falla, dejar la fecha original
@@ -293,7 +295,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
             [ "img.global-image" ],
             [ "span.article-body__figure__caption" ],
         )
-    
+
         videos = extract_videos(
             soup,
             [
@@ -324,7 +326,7 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     except Exception as e:
         print(f"Error al scrapear la siguiente url:\n{url}\nDetalle: {e}")
         return e
-    
+
 
 def consume_article(ch, method, properties, body):
     """
@@ -382,11 +384,11 @@ def consume_article(ch, method, properties, body):
         print(f"Error al scrapear:\n {e}")
         finishing_time = dtime.now()
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
-        
+
         # Actualizar métricas en tiempo real
         medio = mensaje.get("medio", "latercera") if "mensaje" in locals() else "latercera"
         update_scraper_metrics(medio, "error", duration_ms)
-        
+
         # Envío desde scraping_results_send
         scraping_results_send(
             url,
@@ -396,7 +398,7 @@ def consume_article(ch, method, properties, body):
             finishing_time,
             str(e),
         )
-    
+
     # --- acknowledge ---
     ch.basic_ack(delivery_tag=method.delivery_tag)
 
@@ -414,11 +416,15 @@ def main():
     for q in [SCRAPER_QUEUE, LOG_QUEUE, SEND_DATA_QUEUE]:
         scraper_channel.queue_declare(queue=q, durable=False, auto_delete=True)
 
+    signal_handler = StopSignalHandler(scraper_channel, SCRAPER_QUEUE, "Scraper")
 
     scraper_channel.basic_consume(
         queue=SCRAPER_QUEUE, on_message_callback=consume_article
     )
-    scraper_channel.start_consuming()
+
+    while not signal_handler._should_stop():
+        connection.process_data_events(time_limit=1)
+    connection.close()
 
 
 if __name__ == "__main__":
@@ -434,7 +440,7 @@ def test():
 
 
 # Links testeados que causaron errores durante el desarrollo
-# 1. https://www.latercera.com/mundo/noticia/carolin-emcke-el-discurso-del-odio-siempre-enmascara-su-propia-brutalidad/ 
+# 1. https://www.latercera.com/mundo/noticia/carolin-emcke-el-discurso-del-odio-siempre-enmascara-su-propia-brutalidad/
 # 2. https://www.latercera.com/sociales/noticia/clientes-de-finning-se-reunen-en-evento-exclusiv0-durante-electric-mine/
 # 3. https://www.latercera.com/videos/noticia/desde-la-redaccion-24-de-noviembre-los-reparos-de-beatriz-sanchez-a-un-eventual-gobierno-de-jose-antonio-kast/
 # 4. https://www.latercera.com/politica/noticia/exministro-diego-pardow-enfrenta-acusacion-constitucional-en-el-senado/
