@@ -64,6 +64,7 @@ class Scheduler:
         self._proc_sender = None
         self._proc_crawler = None
         self._proc_scrapers = {}
+        self._end_batch_signal_sent = False
 
     def _handle_error(self, error_msg):
         """
@@ -105,8 +106,9 @@ class Scheduler:
     def _start_crawler(self):
         self._stage = SchedulerStages.START_CRAWLER
         ruta_crawler = ev.get_environ_var("CRAWLER")
+        args = [self._medio]
         self._proc_crawler = self._process_manager.launch_script(
-            ruta_crawler, "Crawler"
+            ruta_crawler, "Crawler", args
         )
 
     def _start_scrapers(self):
@@ -160,9 +162,13 @@ class Scheduler:
             self._stage = SchedulerStages.RUNNING_MAIN_LOOP
             while self._running:
                 # Verificar si el logger murió inesperadamente
-                # if self._proc_logger and self._proc_logger.poll() is not None:
-                #    print("Scheduler: ADVERTENCIA - Logger murió inesperadamente, reiniciando...")
-                #    self._start_logger(send_start_batch=False)  # NO limpiar logs al reiniciar
+                if self._proc_logger and self._proc_logger.poll() is not None:
+                    print(
+                        "Scheduler: ADVERTENCIA - Logger murió inesperadamente, reiniciando..."
+                    )
+                    self._start_logger(
+                        send_start_batch=False
+                    )  # NO limpiar logs al reiniciar
 
                 if self._proc_crawler and self._proc_crawler.poll() is not None:
                     self._stage = SchedulerStages.CRAWLING_COMPLETE
@@ -212,23 +218,26 @@ class Scheduler:
         self._stage = SchedulerStages.STOPPING_LOGGER
         # Señalizar el fin de logging batch
         # Señalizar al logger que debe empezar a cerrar (antes de esperar colas)
-        try:
-            logging_batch_send(
-                self._working_batch_id, "end_batch_received", dtime.now()
-            )
-            print("[Scheduler] Señal 'end_batch_received' enviada al logger")
-        except Exception as e:
-            print(f"[Scheduler] Error enviando end_batch_received: {e}")
+        if not self._end_batch_signal_sent:
+            try:
+                logging_batch_send(
+                    self._working_batch_id, "end_batch_received", dtime.now()
+                )
+                self._end_batch_signal_sent = True
+                print("[Scheduler] Señal 'end_batch_received' enviada al logger")
+            except Exception as e:
+                print(f"[Scheduler] Error enviando end_batch_received: {e}")
 
         # Ahora que los scrapers están muertos y logger sabe que debe cerrar,
         # esperar que las colas de logging se vacíen
         print("[Scheduler] Esperando que logger procese mensajes restantes...")
         wait_for_logging_queues_empty(self._proc_logger, self)
 
-        # Dar tiempo al logger para cerrar gracefully antes de matarlo
+        # Dar tiempo al logger para cerrar por su cuenta
+        time.sleep(60)  # esperar 1 minuto para cerrar Logger
         if self._proc_logger and self._proc_logger.poll() is None:
             print("[Scheduler] Esperando 1 minuto para que logger cierre solo...")
-            self._process_manager.terminate_process(self._proc_logger, "Logger", 60)
+            self._process_manager.terminate_process(self._proc_logger, "Logger")
 
         print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
