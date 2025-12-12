@@ -27,20 +27,19 @@ class SchedulerStages(Enum):
     # Finalización de las tareas
     # para la detención natural
     CRAWLING_COMPLETE = auto()
-    SCRAPING_COMPLETE = auto()
-    SENDING_COMPLETE = auto()
-    LOGGING_COMPLETE = auto()
+    STOPPING_SCRAPERS_GRACEFUL = auto()
+    STOPPING_SENDER_GRACEFUL = auto()
 
     # Finalización de tareas
     # para la detención forzada-controlada
     # (Mid-ejecución: por acción de usuario,
     # o bien, por error del scheduler)
     INTERRUPT_RECEIVED = auto()
-    STOPPING_CRAWLER = auto()
-    STOPPING_SCRAPERS = auto()
-    STOPPING_SENDER = auto()
-    STOPPING_LOGGER = auto()
+    STOPPING_CRAWLER_FORCEFUL = auto()
+    STOPPING_SCRAPERS_FORCEFUL = auto()
+    STOPPING_SENDER_FORCEFUL = auto()
 
+    CLOSING_LOGGER = auto()
     SHUTDOWN_COMPLETE = auto()
 
 
@@ -169,26 +168,80 @@ class Scheduler:
                 # Verificar si el logger murió inesperadamente
                 if self._proc_logger and self._proc_logger.poll() is not None:
                     print(
-                        "Scheduler: ADVERTENCIA - Logger murió inesperadamente, reiniciando..."
+                        "[Scheduler] Advertencia: Logger murió inesperadamente, reiniciando..."
                     )
                     self._start_logger(
                         send_start_batch=False
                     )  # NO limpiar logs al reiniciar
 
+                # Verificar si el crawler finalizó
+                # Punto de entrada al cierre "happy path"
                 if self._proc_crawler and self._proc_crawler.poll() is not None:
                     self._stage = SchedulerStages.CRAWLING_COMPLETE
                     print("[Scheduler] Ha registrado que Crawler concluyó sus tareas")
-                    print(
-                        "[Scheduler] Esperando a que scrapers terminen de procesar scraper_queue..."
-                    )
-                    wait_for_scraper_queue_empty(self._proc_scrapers, self._medio, self)
-                    self._forceful_stop_subprocesos()
+                    self._graceful_stop_subprocesos() # Secuencia de apagado ordenado
                     break
                 time.sleep(1)
 
         except Exception as e:
             self._handle_error(f"[Scheduler] Error crítico en Scheduler: {str(e)}")
             self._forceful_stop_subprocesos()
+
+    def _graceful_stop_subprocesos(self):
+        """
+        Maneja el flujo natural de finalización,
+        por ciclo de vida de los procesos (happy
+        path). La limpieza es delegada a cada
+        subproceso con señales secuenciales.
+        """
+        print("[Scheduler] Iniciando secuencia de apagado ordenada...")
+        self._stage = SchedulerStages.STOPPING_SCRAPERS_GRACEFUL
+        for scraper_id, proc in self._proc_scrapers.items():
+            print(f"[Scheduler] Señalizando a Scraper {scraper_id} (esperando a que drene su message queue)...")
+            self._process_manager.terminate_process(proc, f"Scraper {scraper_id}", timeout=1800)
+
+        self._stage = SchedulerStages.STOPPING_SENDER_GRACEFUL
+        print("[Scheduler] Señalizando a Sender (esperando a que drene su message queue)...")
+        self._process_manager.terminate_process(self._proc_sender, "Sender", timeout=300)
+
+        self._close_logging()
+
+        print("[Scheduler] Cierre completado.")
+        self._stage = SchedulerStages.SHUTDOWN_COMPLETE
+
+    def _close_logging(self): # unambiguous
+        """
+        Detiene el proceso de logging específicamente,
+        de manera "graceful" para que no se pierdan
+        logs importantes del proceso y se puedan
+        obtener las métricas.
+        Este procedimiento es llamado por ambos,
+            _graceful_stop_subprocesos()
+            _forceful_stop_subprocesos()
+        cuando ya se han cerrado el crawler, los
+        scrapers y el sender.
+
+        También maneja la señal de _stage.
+        """
+
+        self._stage = SchedulerStages.CLOSING_LOGGER
+        print("[Scheduler] Señalizando a Logger para que termine (esperando a que drene sus message queues)...")
+
+        if not self._end_batch_signal_sent:
+            try:
+                logging_batch_send(
+                    self._working_batch_id, "end_batch_received", dtime.now()
+                )
+                self._end_batch_signal_sent = True
+                print("[Scheduler] Señal 'end_batch_received' enviada al logger")
+            except Exception as e:
+                print(f"[Scheduler] Error enviando 'end_batch_received': {e}")
+
+        if self._proc_logger:
+            self._process_manager.wait_process_then_terminate(
+                self._proc_logger, "Logger", 300
+            )
+
 
     def _receive_interrupt(self, signum, frame):
         """
@@ -210,33 +263,22 @@ class Scheduler:
         del scheduler.
         El logger es lo último que se cierra.
         """
-        print("[Scheduler] Cerrando subprocesos...")
+        print("[Scheduler] Iniciando secuencia de apagado forzada...")
 
-        self._stage = SchedulerStages.STOPPING_CRAWLER
+        self._stage = SchedulerStages.STOPPING_CRAWLER_FORCEFUL
+        print("[Scheduler] Forzando el cierre de Crawler (timeout de 10s)...")
         self._process_manager.terminate_process(self._proc_crawler, "Crawler")
-        self._stage = SchedulerStages.STOPPING_SCRAPERS
+
+        self._stage = SchedulerStages.STOPPING_SCRAPERS_FORCEFUL
         for scraper_id, proc in self._proc_scrapers.items():
+            print(f"[Scheduler] Forzando el cierre de Scraper {scraper_id} (esperando a que drene su message queue antes o que exceda el timeout de 10s)...")
             self._process_manager.terminate_process(proc, f"Scraper {scraper_id}")
-        self._stage = SchedulerStages.STOPPING_SENDER
+
+        self._stage = SchedulerStages.STOPPING_SENDER_FORCEFUL
+        print("[Scheduler] Forzando el cierre de Sender (timeout de 10s)...")
         self._process_manager.terminate_process(self._proc_sender, "Sender")
 
-        self._stage = SchedulerStages.STOPPING_LOGGER
-
-        # Señalizar al logger que debe empezar a cerrar
-        if not self._end_batch_signal_sent:
-            try:
-                logging_batch_send(
-                    self._working_batch_id, "end_batch_received", dtime.now()
-                )
-                self._end_batch_signal_sent = True
-                print("[Scheduler] Señal 'end_batch_received' enviada al logger")
-            except Exception as e:
-                print(f"[Scheduler] Error enviando end_batch_received: {e}")
-
-        if self._proc_logger:
-            self._process_manager.wait_process_then_terminate(
-                self._proc_logger, "Logger", 300
-            )
+        self._close_logging()
 
         print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
