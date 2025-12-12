@@ -33,3 +33,14 @@ def get_rabbit_connection():
             raise Exception from e
 
     return get_rabbit_connection._connection
+
+def reset_connection():
+    """Fuerza el cierre y eliminación de la conexión actual para obligar una reconexión."""
+    if hasattr(get_rabbit_connection, "_connection"):
+        try:
+            if get_rabbit_connection._connection.is_open:
+                get_rabbit_connection._connection.close()
+        except Exception:
+            pass # Ignorar errores al cerrar si ya estaba cerrada
+        # Eliminar el atributo para que get_rabbit_connection cree una nueva la próxima vez
+        delattr(get_rabbit_connection, "_connection")
