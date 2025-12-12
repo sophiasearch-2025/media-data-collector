@@ -248,4 +248,22 @@ TODO: Revisar cruce de responsabilidades.
 Scheduler debería delegar la finalización a cada proceso,
 que cada subproceso se encargue de su limpieza interna y no
 responsabilizar al planificador de ese micromanagement.
+DONE (13.51)
+SORT OF??
+
+18.44
+TODO: Revisar flujo natural por ciclo de vida.
+(Happy path)
+Scheduler lanza: logger, sender, crawler, scrapers.
+Una vez el crawler finalice (naturalmente, por concluido
+el crawleo), el scraper debe recibir alguna señal que le
+indique que no va a seguir recibiendo más mensajes en
+su queue consumida. En este caso, el scraper SÍ debe
+terminar de leer todos los mensajes en su cola (sin timeout,
+porque el scraping toma tiempo).
+Una vez el scraper termine de scrapear todo, también
+se debe dar una señal a sender para que termine.
+Después de todo esto, concluir el logger como se está haciendo
+hasta ahora.
+Y finalmente, cerrar el scheduler.
 """
