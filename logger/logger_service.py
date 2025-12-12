@@ -11,6 +11,8 @@ class LoggerService:
         self._working_batch_id = working_batch_id
         self._channel = channel
         self._terminating = False
+        self._last_message_time = datetime.now()
+        self._idle_timeout = 120  # Cerrar si no hay mensajes por 2 minutos
 
         self._basic_queue_to_key = {
             Config.QUEUE_SCHEDULER_LOGS: Config.KEY_SCHEDULER_ERRORS,
@@ -43,8 +45,17 @@ class LoggerService:
         self._running = True
         while self._running:
             self._channel.connection.process_data_events(time_limit=1.0)
+            
+            # Si recibió señal de terminar, verificar si puede cerrarse
             if self._terminating:
                 self._verificar_condicion_cierre()
+            else:
+                # Si no ha recibido señal pero lleva mucho tiempo sin mensajes, cerrarse igual
+                idle_time = (datetime.now() - self._last_message_time).total_seconds()
+                if idle_time > self._idle_timeout and self._are_queues_empty():
+                    print(f"[Logger] Sin mensajes por {idle_time:.0f}s y colas vacías. Cerrando automáticamente...")
+                    self._terminating = True
+                    self._verificar_condicion_cierre()
 
         print("[Logger] Terminando ejecución...")
 
@@ -71,6 +82,7 @@ class LoggerService:
             msg["id_logging_process"] = self._working_batch_id
             logs_operations.anexar_log(msg, redis_key)
             ch.basic_ack(delivery_tag=method.delivery_tag)
+            self._last_message_time = datetime.now()  # Actualizar timestamp
         except Exception as e:
             print(f"[Logger] Error al registrar mensaje en {redis_key}: {e}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
@@ -86,12 +98,14 @@ class LoggerService:
                 # Se inició una nueva tanda de loggeo, borrar logs previos
                 print("[Logger] Se ha recibido start_batch.")
                 self._clear_all_logs()
+                self._last_message_time = datetime.now()  # Reiniciar timer
             elif msg.get("action") == "end_batch_received":
                 # Se recibió señal para concluir el proceso de loggeo
                 print("[Logger] Se ha recibido end_batch_received.")
                 self._terminating = True
             logs_operations.anexar_log(msg, self._control_key)
             ch.basic_ack(delivery_tag=method.delivery_tag)
+            self._last_message_time = datetime.now()  # Actualizar timestamp
         except Exception as e:
             print(f"[Logger] Error al registrar mensaje en {self._control_key}: {e}")
             ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)

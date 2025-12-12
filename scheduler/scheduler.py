@@ -112,6 +112,12 @@ class Scheduler:
 
     def _start_scrapers(self):
         self._stage = SchedulerStages.START_SCRAPERS
+
+        # Inicializar archivo de progreso antes de lanzar scrapers
+        from scheduler.scheduler_queue_utils import initialize_scraper_progress
+
+        initialize_scraper_progress(self._medio)
+
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
             scraper_id = i + 1

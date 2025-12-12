@@ -6,6 +6,111 @@ Separadas para evitar conflictos con el código original del scheduler.
 import json
 import os
 import time
+import requests
+from datetime import datetime
+
+# Bloqueo de archivos multiplataforma
+if os.name == "nt":  # Windows
+    import msvcrt
+    def file_lock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+    def file_unlock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:  # Linux/Unix/MacOS
+    import fcntl
+    def file_lock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+    def file_unlock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+
+def initialize_scraper_progress(medio):
+    """
+    Inicializa/resetea el archivo scraper_progress.json para un medio específico.
+    Usa file locking para evitar race conditions con múltiples procesos.
+    
+    Args:
+        medio: Nombre del medio (biobiochile, latercera, etc.)
+    """
+    progress_file = "metrics/scraper_progress.json"
+    os.makedirs("metrics", exist_ok=True)
+    
+    # Reintentar si hay problemas de acceso concurrente
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            # Usar 'a+' para crear si no existe, o abrir si existe
+            with open(progress_file, "a+", encoding="utf-8") as f:
+                # Adquirir lock exclusivo
+                file_lock(f)
+                
+                try:
+                    # Leer contenido existente
+                    f.seek(0)
+                    content = f.read()
+                    if content.strip():
+                        existing_progress = json.loads(content)
+                    else:
+                        existing_progress = {}
+                except (json.JSONDecodeError, ValueError):
+                    existing_progress = {}
+                
+                # Inicializar/resetear solo el medio actual
+                existing_progress[medio] = {
+                    "total_articulos_exitosos": 0,
+                    "total_articulos_fallidos": 0,
+                    "duracion_promedio_ms": 0,
+                    "articulos_por_minuto": 0,
+                    "ultima_actualizacion": "",
+                    "start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                
+                # Sobrescribir archivo
+                f.seek(0)
+                f.truncate()
+                json.dump(existing_progress, f, ensure_ascii=False, indent=2)
+                
+                # Liberar lock (automático al cerrar)
+                file_unlock(f)
+                
+            print(f"[scheduler_queue_utils] Archivo {progress_file} inicializado para medio '{medio}'")
+            return True
+            
+        except IOError as e:
+            if attempt < max_retries - 1:
+                time.sleep(0.1)
+            else:
+                print(f"[scheduler_queue_utils] Error inicializando scraper_progress.json después de {max_retries} intentos: {e}")
+                return False
+    
+    return False
+
+
+def get_queue_details(queue_name="scraper_queue"):
+    """
+    Obtiene detalles completos de la cola desde RabbitMQ Management API.
+    Incluye mensajes ready, unacked, consumers, etc.
+    
+    Returns:
+        dict con 'messages_ready', 'messages_unacknowledged', 'consumers'
+        o None si hay error
+    """
+    try:
+        url = f"http://localhost:15672/api/queues/%2F/{queue_name}"
+        auth = ("guest", "guest")  # credenciales por defecto
+        
+        response = requests.get(url, auth=auth, timeout=2)
+        if response.status_code == 200:
+            data = response.json()
+            return {
+                'messages_ready': data.get('messages_ready', 0),
+                'messages_unacknowledged': data.get('messages_unacknowledged', 0),
+                'consumers': data.get('consumers', 0),
+                'total': data.get('messages', 0)
+            }
+    except Exception as e:
+        print(f"Scheduler: Error consultando Management API: {e}")
+    return None
 
 
 def wait_for_scraper_queue_empty(proc_scrapers, medio, running_flag):

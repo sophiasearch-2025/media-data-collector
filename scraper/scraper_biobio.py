@@ -46,9 +46,13 @@ SCRAPER_QUEUE = "scraper_queue"
 LOG_QUEUE = "scraping_log_queue"
 SEND_DATA_QUEUE = "send_data_queue"
 
+# Session compartida para reutilizar conexiones HTTP (connection pooling)
+HTTP_SESSION = requests.Session()
+HTTP_SESSION.headers.update({'User-Agent': 'Mozilla/5.0'})
 
-def update_scraper_metrics(status: str, duration_ms: float = 0):
-    """Actualiza las métricas del scraper en tiempo real con file locking"""
+
+def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
+    """Actualiza las métricas del scraper en tiempo real con file locking (por medio)"""
     progress_file = Path("metrics/scraper_progress.json")
     progress_file.parent.mkdir(exist_ok=True)
 
@@ -61,16 +65,22 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                 file_lock(f)
 
                 try:
-                    # Leer métricas existentes
+                    # Leer métricas existentes (estructura por medio)
                     f.seek(0)
                     content = f.read()
                     if content.strip():
-                        metrics = json.loads(content)
+                        all_metrics = json.loads(content)
                     else:
-                        metrics = {}
+                        all_metrics = {}
                 except (json.JSONDecodeError, ValueError):
                     # Archivo corrupto, reiniciar
-                    metrics = {}
+                    all_metrics = {}
+                
+                # Obtener o crear métricas para este medio
+                if medio not in all_metrics:
+                    all_metrics[medio] = {}
+                
+                metrics = all_metrics[medio]
 
                 # Asegurar que todos los campos existan
                 metrics.setdefault("total_articulos_exitosos", 0)
@@ -118,11 +128,14 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                 metrics["ultima_actualizacion"] = dtime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
+                
+                # Guardar de vuelta la estructura completa
+                all_metrics[medio] = metrics
 
                 # Escribir métricas actualizadas
                 f.seek(0)
                 f.truncate()
-                json.dump(metrics, f, ensure_ascii=False, indent=2)
+                json.dump(all_metrics, f, ensure_ascii=False, indent=2)
 
                 # Liberar lock (automático al cerrar, pero explícito por claridad)
                 file_unlock(f)
@@ -136,20 +149,40 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                     f"Error actualizando métricas después de {max_retries} intentos: {e}"
                 )
         except FileNotFoundError:
-            # Crear archivo si no existe
-            with open(progress_file, "w", encoding="utf-8") as f:
-                file_lock(f)
-                initial_metrics = {
-                    "total_articulos_exitosos": 1 if status == "success" else 0,
-                    "total_articulos_fallidos": 0 if status == "success" else 1,
-                    "duracion_promedio_ms": duration_ms,
-                    "articulos_por_minuto": 0,
-                    "ultima_actualizacion": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                    "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                }
-                json.dump(initial_metrics, f, ensure_ascii=False, indent=2)
-                file_unlock(f)
-            break
+            # Crear archivo si no existe (usando 'a+' para no sobrescribir si otro scraper lo creó)
+            try:
+                with open(progress_file, "a+", encoding="utf-8") as f:
+                    file_lock(f)
+                    f.seek(0)
+                    content = f.read()
+                    
+                    if content.strip():
+                        # Otro scraper ya lo creó, reintentar lectura
+                        file_unlock(f)
+                        time.sleep(0.05)
+                        continue
+                    
+                    # Realmente está vacío, inicializar con estructura por medio
+                    initial_metrics = {
+                        medio: {
+                            "total_articulos_exitosos": 1 if status == "success" else 0,
+                            "total_articulos_fallidos": 0 if status == "success" else 1,
+                            "duracion_promedio_ms": duration_ms,
+                            "articulos_por_minuto": 0,
+                            "ultima_actualizacion": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        }
+                    }
+                    f.truncate(0)
+                    json.dump(initial_metrics, f, ensure_ascii=False, indent=2)
+                    file_unlock(f)
+                break
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    time.sleep(0.1)
+                else:
+                    print(f"Error creando archivo de métricas: {e}")
+                    break
 
 
 def scrap_news_article(url: str, validate: bool = False) -> dict | list:
@@ -161,8 +194,8 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
     invalid_args = []
 
     try:
-        # Realizar una request al sitio
-        response = requests.get(url, timeout=10)
+        # Realizar una request al sitio (usa Session para reutilizar conexiones)
+        response = HTTP_SESSION.get(url, timeout=10)
         response.encoding = "utf-8"
         response.raise_for_status()
 
@@ -290,7 +323,8 @@ def consume_article(ch, method, properties, body):
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
 
         # --- Actualizar métricas en tiempo real ---
-        update_scraper_metrics("success", duration_ms)
+        medio = mensaje.get("medio", "biobiochile")
+        update_scraper_metrics(medio, "success", duration_ms)
 
         # --- mensaje para logs ---
         # Envío desde scraping_resuls_send()
@@ -322,7 +356,8 @@ def consume_article(ch, method, properties, body):
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
 
         # --- Actualizar métricas en tiempo real ---
-        update_scraper_metrics("error", duration_ms)
+        medio = mensaje.get("medio", "biobiochile") if "mensaje" in locals() else "biobiochile"
+        update_scraper_metrics(medio, "error", duration_ms)
 
         # Envío desde scraping_results_send
         scraping_results_send(

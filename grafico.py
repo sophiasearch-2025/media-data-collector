@@ -39,14 +39,25 @@ async def websocket_endpoint(websocket: WebSocket):
             # Progreso del scraper (tiempo real)
             scraper_progress_path = Path("metrics/scraper_progress.json")
             if scraper_progress_path.exists():
-                with open(scraper_progress_path, "r") as f:
-                    data["scraper"] = json.load(f)
+                try:
+                    with open(scraper_progress_path, "r") as f:
+                        content = f.read()
+                        if content.strip():  # Solo parsear si no está vacío
+                            data["scraper"] = json.loads(content)
+                except (json.JSONDecodeError, IOError):
+                    # Archivo vacío o siendo escrito, skip
+                    pass
             
             # Métricas finales del scraper (generadas por logger al terminar)
             scraper_metrics_path = Path("metrics/scraper_metrics.json")
             if scraper_metrics_path.exists():
-                with open(scraper_metrics_path, "r") as f:
-                    data["scraper_final"] = json.load(f)
+                try:
+                    with open(scraper_metrics_path, "r") as f:
+                        content = f.read()
+                        if content.strip():
+                            data["scraper_final"] = json.loads(content)
+                except (json.JSONDecodeError, IOError):
+                    pass
             
             # Timestamp actual
             data["timestamp"] = datetime.now().isoformat()
@@ -452,7 +463,20 @@ async def dashboard():
             }
             
             if (data.scraper) {
-                const s = data.scraper;
+                // Detectar el medio activo desde data.progress o usar el primer medio disponible
+                let medioActivo = data.progress?.sitio;
+                
+                // Si no hay medio en progress, buscar el primer medio con datos en scraper
+                if (!medioActivo) {
+                    const mediosDisponibles = Object.keys(data.scraper);
+                    if (mediosDisponibles.length > 0) {
+                        medioActivo = mediosDisponibles[0];
+                    }
+                }
+                
+                // Obtener métricas del medio activo
+                const s = medioActivo && data.scraper[medioActivo] ? data.scraper[medioActivo] : {};
+                
                 document.getElementById('stat-success').textContent = s.total_articulos_exitosos || 0;
                 document.getElementById('stat-errors').textContent = s.total_articulos_fallidos || 0;
                 document.getElementById('stat-rate').textContent = 

@@ -105,16 +105,42 @@ class MetricsEngine:
                                 else fecha_pub.strip()
                             )
 
-                            # Intentar parsear formatos estándar
-                            for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
+                            # Mapa de nombres de días y meses en español
+                            dias_es = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
+                            meses_es = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
+                                       'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre']
+                            
+                            # Intentar parsear formato ISO 8601 (de La Tercera): 2025-05-19T21:22:48.24Z
+                            if "T" in fecha_parte and ("Z" in fecha_parte or "+" in fecha_parte or "-" in fecha_parte[-6:]):
                                 try:
-                                    fecha_dt = datetime.strptime(fecha_parte, fmt)
-                                    fecha_normalizada = fecha_dt.strftime("%Y-%m-%d")
-                                    break
-                                except ValueError:
-                                    continue
+                                    # Remover microsegundos si existen
+                                    if "." in fecha_parte:
+                                        fecha_parte_limpia = fecha_parte.split(".")[0]
+                                    else:
+                                        fecha_parte_limpia = fecha_parte.rstrip("Z")
+                                    
+                                    fecha_dt = datetime.fromisoformat(fecha_parte_limpia.rstrip("Z"))
+                                    # Convertir a formato español: "Día DD mes de YYYY"
+                                    dia_semana = dias_es[fecha_dt.weekday()]
+                                    mes_nombre = meses_es[fecha_dt.month - 1]
+                                    fecha_normalizada = f"{dia_semana} {fecha_dt.day:02d} {mes_nombre} de {fecha_dt.year}"
+                                except (ValueError, AttributeError):
+                                    pass
+                            
+                            # Si no es ISO, intentar parsear formatos estándar
+                            if not fecha_normalizada:
+                                for fmt in ["%Y-%m-%d", "%d-%m-%Y", "%d/%m/%Y", "%Y/%m/%d"]:
+                                    try:
+                                        fecha_dt = datetime.strptime(fecha_parte, fmt)
+                                        # Convertir a formato español
+                                        dia_semana = dias_es[fecha_dt.weekday()]
+                                        mes_nombre = meses_es[fecha_dt.month - 1]
+                                        fecha_normalizada = f"{dia_semana} {fecha_dt.day:02d} {mes_nombre} de {fecha_dt.year}"
+                                        break
+                                    except ValueError:
+                                        continue
 
-                            # Si no coincidió con formatos estándar, usar la parte antes del | como está
+                            # Si no coincidió con formatos conocidos, usar la parte antes del | como está
                             if not fecha_normalizada:
                                 fecha_normalizada = fecha_parte
 
@@ -137,6 +163,58 @@ class MetricsEngine:
                         sorted(publicaciones_por_fecha.items())
                     ),
                 }
+
+            # CORRECCIÓN: Verificar con scraper_progress.json (más confiable)
+            # Si tiene números más altos, usarlos (algunos logs pueden perderse en Redis)
+            progress_file = os.path.join(self._output_dir, "scraper_progress.json")
+            if os.path.exists(progress_file):
+                try:
+                    with open(progress_file, "r", encoding="utf-8") as f:
+                        all_progress = json.load(f)
+                    
+                    # Iterar por cada medio en existing_metrics
+                    for medio in existing_metrics:
+                        progress = all_progress.get(medio, {})
+                        
+                        total_progress = progress.get("total_articulos_exitosos", 0) + progress.get("total_articulos_fallidos", 0)
+                        
+                        # Si scraper_progress tiene más artículos, usar esos números
+                        # (significa que algunos logs no llegaron a Redis)
+                        if total_progress > 0:
+                            redis_total = existing_metrics[medio]["total_urls_procesadas"]
+                            
+                            # Si Redis tiene menos que progress, progress es más confiable
+                            if total_progress > redis_total:
+                                # Calcular duración desde start_time
+                                start_time_str = progress.get("start_time")
+                                last_update_str = progress.get("ultima_actualizacion")
+                                
+                                if start_time_str and last_update_str:
+                                    try:
+                                        start_dt = datetime.strptime(start_time_str, "%Y-%m-%d %H:%M:%S")
+                                        end_dt = datetime.strptime(last_update_str, "%Y-%m-%d %H:%M:%S")
+                                        duracion_real = (end_dt - start_dt).total_seconds()
+                                        
+                                        # Continuar procesando este medio específico:
+                                        print(f"[logger] Corrigiendo métricas de '{medio}': Redis tiene {redis_total}, scraper_progress tiene {total_progress}")
+                                        
+                                        exitos = progress.get("total_articulos_exitosos", 0)
+                                        fallos = progress.get("total_articulos_fallidos", 0)
+                                        porcentaje = (exitos / total_progress * 100) if total_progress > 0 else 0
+                                        noticias_por_minuto = (total_progress / (duracion_real / 60)) if duracion_real > 0 else 0
+                                        tiempo_promedio = progress.get("duracion_promedio_ms", 0) / 1000.0
+                                        
+                                        existing_metrics[medio]["total_urls_procesadas"] = total_progress
+                                        existing_metrics[medio]["scrape_exitosos"] = exitos
+                                        existing_metrics[medio]["scrape_fallidos"] = fallos
+                                        existing_metrics[medio]["porcentaje_exito"] = round(porcentaje, 2)
+                                        existing_metrics[medio]["duracion_segundos"] = round(duracion_real, 2)
+                                        existing_metrics[medio]["noticias_por_minuto"] = round(noticias_por_minuto, 3)
+                                        existing_metrics[medio]["tiempo_promedio_scrape"] = round(tiempo_promedio, 3)
+                                    except Exception as e:
+                                        print(f"[logger] Error parseando fechas de scraper_progress: {e}")
+                except Exception as e:
+                    print(f"[logger] Error leyendo scraper_progress.json: {e}")
 
             os.makedirs(self._output_dir, exist_ok=True)
             with open(metrics_file, "w", encoding="utf-8") as f:

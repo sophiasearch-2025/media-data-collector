@@ -1,16 +1,16 @@
 {
     "biobiochile": {
-        "total_categorias": 78,
-        "total_urls_encontradas": 1163,
-        "urls_por_categoria": 14.91,
-        "duracion_segundos": 351.55,
-        "urls_por_minuto": 198.49
+        "total_categorias": 79,
+        "total_urls_encontradas": 1174,
+        "urls_por_categoria": 14.861,
+        "duracion_segundos": 627.68,
+        "urls_por_minuto": 112.22
     },
     "latercera": {
         "total_categorias": 27,
-        "total_urls_encontradas": 833,
-        "urls_por_categoria": 30.852,
-        "duracion_segundos": 123.71,
-        "urls_por_minuto": 404.0
+        "total_urls_encontradas": 845,
+        "urls_por_categoria": 31.296,
+        "duracion_segundos": 119.94,
+        "urls_por_minuto": 422.71
     }
 }
