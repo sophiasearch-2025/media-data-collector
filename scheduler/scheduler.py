@@ -113,6 +113,11 @@ class Scheduler:
 
     def _start_scrapers(self):
         self._stage = SchedulerStages.START_SCRAPERS
+        
+        # Inicializar archivo de progreso antes de lanzar scrapers
+        from scheduler.scheduler_queue_utils import initialize_scraper_progress
+        initialize_scraper_progress(self._medio)
+        
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
             scraper_id = i + 1
@@ -234,9 +239,10 @@ class Scheduler:
         wait_for_logging_queues_empty(self._proc_logger, self)
 
         # Dar tiempo al logger para cerrar por su cuenta
-        time.sleep(60)  # esperar 1 minuto para cerrar Logger
+        print("[Scheduler] Esperando 15 segundos para que logger cierre solo...")
+        time.sleep(15)
         if self._proc_logger and self._proc_logger.poll() is None:
-            print("[Scheduler] Esperando 1 minuto para que logger cierre solo...")
+            print("[Scheduler] Logger aún activo, terminándolo...")
             self._process_manager.terminate_process(self._proc_logger, "Logger")
 
         print("[Scheduler] Cierre completado.")

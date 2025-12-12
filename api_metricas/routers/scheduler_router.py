@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import subprocess
 import sys
 import os
+import signal
+import time
 
 router = APIRouter(prefix="/scheduler", tags=["scheduler"])
 
@@ -48,16 +50,10 @@ async def start_scheduler(request: CrawlerStartRequest):
         metrics_dir = Path(PROJECT_ROOT) / "metrics"
         metrics_dir.mkdir(exist_ok=True)
         
-        # Resetear scraper_progress.json (para dashboard en tiempo real)
-        scraper_progress = {
-            "total_articulos_exitosos": 0,
-            "total_articulos_fallidos": 0,
-            "duracion_promedio_ms": 0,
-            "articulos_por_minuto": 0,
-            "ultima_actualizacion": ""
-        }
-        with open(metrics_dir / "scraper_progress.json", "w", encoding="utf-8") as f:
-            json.dump(scraper_progress, f, ensure_ascii=False, indent=2)
+        # Resetear scraper_progress.json usando función con file locking
+        sys.path.insert(0, PROJECT_ROOT)
+        from scheduler.scheduler_queue_utils import initialize_scraper_progress
+        initialize_scraper_progress(request.medio)
         
         # Resetear crawler_progress.json
         crawler_progress = {
@@ -97,27 +93,55 @@ async def stop_scheduler():
     """Detiene el scheduler y todos sus procesos hijos"""
     global scheduler_status
     
-    if not scheduler_status or scheduler_status.poll() is not None:
-        raise HTTPException(status_code=400, detail="No hay crawler corriendo")
-    
     try:
-        import signal
-        import time
+        
+        # Si no tenemos referencia al proceso, buscar por nombre
+        scheduler_pid = None
+        if scheduler_status and scheduler_status.poll() is None:
+            scheduler_pid = scheduler_status.pid
+        else:
+            # Buscar proceso scheduler.main usando pgrep
+            try:
+                result = subprocess.run(
+                    ["pgrep", "-f", "scheduler.main"],
+                    capture_output=True,
+                    text=True
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    scheduler_pid = int(result.stdout.strip().split()[0])
+                    print(f"Encontrado scheduler corriendo con PID: {scheduler_pid}")
+            except (FileNotFoundError, ValueError):
+                pass
+        
+        if not scheduler_pid:
+            raise HTTPException(status_code=400, detail="No hay crawler corriendo")
         
         # El nuevo scheduler maneja SIGTERM/SIGINT correctamente
         # Enviar SIGTERM al proceso principal (scheduler)
-        print(f"Enviando SIGTERM al scheduler (PID: {scheduler_status.pid})")
-        scheduler_status.send_signal(signal.SIGTERM)
+        print(f"Enviando SIGTERM al scheduler (PID: {scheduler_pid})")
+        os.kill(scheduler_pid, signal.SIGTERM)
         
         # Esperar a que termine gracefully (máximo 180 segundos - 3 minutos)
         # El scheduler puede estar esperando que colas se vacíen
-        try:
-            scheduler_status.wait(timeout=180)
-            print("Scheduler detenido correctamente")
-        except subprocess.TimeoutExpired:
+        max_wait = 180
+        waited = 0
+        while waited < max_wait:
+            # Verificar si el proceso sigue corriendo
+            try:
+                os.kill(scheduler_pid, 0)  # Signal 0 solo verifica si existe
+                time.sleep(1)
+                waited += 1
+            except ProcessLookupError:
+                # El proceso ya no existe
+                print("Scheduler detenido correctamente")
+                break
+        else:
+            # Si llegamos aquí, el proceso no se detuvo en 3 minutos
             print("Scheduler no respondió a SIGTERM en 3 minutos, forzando con SIGKILL")
-            scheduler_status.kill()
-            scheduler_status.wait()
+            try:
+                os.kill(scheduler_pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass  # Ya terminó
         
         scheduler_status = None
         
