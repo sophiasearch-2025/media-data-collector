@@ -81,7 +81,7 @@ class Scheduler:
     def _start_logger(self, send_start_batch=True):
         self._stage = SchedulerStages.START_LOGGER
         ruta_logger = ev.get_environ_var("LOGGER")
-        args = ["--id", self._working_batch_id]
+        args = ["--id", str(self._working_batch_id)]
         self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger", args)
         time.sleep(10)
         if send_start_batch: # solo enviar start_batch en el primer launch, no en reinicios
@@ -176,7 +176,7 @@ class Scheduler:
         lanzar `_forceful_stop_subprocesos`
         """
         print(
-            f"\n[Scheduler] Recibida señal {signum} para detener su orquestador. Cerrando..."
+            f"\n[Scheduler] Recibida señal {signum} para detener el orquestador. Cerrando..."
         )
         self._running = False
         self._stage = SchedulerStages.INTERRUPT_RECEIVED
@@ -217,10 +217,6 @@ class Scheduler:
         # Dar tiempo al logger para cerrar gracefully antes de matarlo
         if self._proc_logger and self._proc_logger.poll() is None:
             print("Scheduler: Esperando 10 segundos para que logger cierre solo...")
-            time.sleep(10)
-
-        # Si el logger todavía está vivo, matarlo
-        if self._proc_logger:
             self._process_manager.terminate_process(self._proc_logger, "Logger", 10)
 
         print("[Scheduler] Cierre completado.")
