@@ -2,8 +2,26 @@ import json
 import os
 import sys
 from datetime import datetime as dtime
-import fcntl
 import time
+
+# Bloqueo de archivos
+if os.name == "nt": # Windows
+    import msvcrt
+
+    def file_lock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+
+    def file_unlock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:   # Linux/Unix/MacOS
+    import fcntl
+
+    def file_lock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+
+    def file_unlock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
 
 # Agregar el directorio raíz al path ANTES de los imports
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -40,7 +58,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
         try:
             with open(progress_file, "r+", encoding="utf-8") as f:
                 # Adquirir lock exclusivo
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                file_lock(f)
                 
                 try:
                     # Leer métricas existentes
@@ -95,7 +113,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                 json.dump(metrics, f, ensure_ascii=False, indent=2)
                 
                 # Liberar lock (automático al cerrar, pero explícito por claridad)
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                file_unlock(f)
                 break
                 
         except IOError as e:
@@ -106,7 +124,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
         except FileNotFoundError:
             # Crear archivo si no existe
             with open(progress_file, "w", encoding="utf-8") as f:
-                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+                file_lock(f)
                 initial_metrics = {
                     "total_articulos_exitosos": 1 if status == "success" else 0,
                     "total_articulos_fallidos": 0 if status == "success" else 1,
@@ -116,7 +134,7 @@ def update_scraper_metrics(status: str, duration_ms: float = 0):
                     "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
                 json.dump(initial_metrics, f, ensure_ascii=False, indent=2)
-                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+                file_unlock(f)
             break
 
 
