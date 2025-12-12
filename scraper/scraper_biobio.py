@@ -4,6 +4,8 @@ import sys
 import time
 from datetime import datetime as dtime
 
+from utils.stop_signal_handler import StopSignalHandler
+
 # Bloqueo de archivos
 if os.name == "nt":  # Windows
     import msvcrt
@@ -48,7 +50,7 @@ SEND_DATA_QUEUE = "send_data_queue"
 
 # Session compartida para reutilizar conexiones HTTP (connection pooling)
 HTTP_SESSION = requests.Session()
-HTTP_SESSION.headers.update({'User-Agent': 'Mozilla/5.0'})
+HTTP_SESSION.headers.update({"User-Agent": "Mozilla/5.0"})
 
 
 def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
@@ -75,11 +77,11 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                 except (json.JSONDecodeError, ValueError):
                     # Archivo corrupto, reiniciar
                     all_metrics = {}
-                
+
                 # Obtener o crear métricas para este medio
                 if medio not in all_metrics:
                     all_metrics[medio] = {}
-                
+
                 metrics = all_metrics[medio]
 
                 # Asegurar que todos los campos existan
@@ -128,7 +130,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                 metrics["ultima_actualizacion"] = dtime.now().strftime(
                     "%Y-%m-%d %H:%M:%S"
                 )
-                
+
                 # Guardar de vuelta la estructura completa
                 all_metrics[medio] = metrics
 
@@ -155,13 +157,13 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                     file_lock(f)
                     f.seek(0)
                     content = f.read()
-                    
+
                     if content.strip():
                         # Otro scraper ya lo creó, reintentar lectura
                         file_unlock(f)
                         time.sleep(0.05)
                         continue
-                    
+
                     # Realmente está vacío, inicializar con estructura por medio
                     initial_metrics = {
                         medio: {
@@ -169,7 +171,9 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                             "total_articulos_fallidos": 0 if status == "success" else 1,
                             "duracion_promedio_ms": duration_ms,
                             "articulos_por_minuto": 0,
-                            "ultima_actualizacion": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                            "ultima_actualizacion": dtime.now().strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            ),
                             "start_time": dtime.now().strftime("%Y-%m-%d %H:%M:%S"),
                         }
                     }
@@ -356,7 +360,11 @@ def consume_article(ch, method, properties, body):
         duration_ms = (finishing_time - starting_time).total_seconds() * 1000
 
         # --- Actualizar métricas en tiempo real ---
-        medio = mensaje.get("medio", "biobiochile") if "mensaje" in locals() else "biobiochile"
+        medio = (
+            mensaje.get("medio", "biobiochile")
+            if "mensaje" in locals()
+            else "biobiochile"
+        )
         update_scraper_metrics(medio, "error", duration_ms)
 
         # Envío desde scraping_results_send
@@ -387,10 +395,15 @@ def main():
         scraper_channel.queue_declare(queue=q, durable=False, auto_delete=True)
     scraper_channel.queue_declare(queue=LOG_QUEUE, auto_delete=True)
 
+    signal_handler = StopSignalHandler(scraper_channel, SCRAPER_QUEUE, "Scraper")
+
     scraper_channel.basic_consume(
         queue=SCRAPER_QUEUE, on_message_callback=consume_article
     )
-    scraper_channel.start_consuming()
+
+    while not signal_handler._should_stop():
+        connection.process_data_events(time_limit=1)
+    connection.close()
 
 
 if __name__ == "__main__":
