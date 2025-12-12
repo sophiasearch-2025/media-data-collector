@@ -31,29 +31,38 @@ SITES = {
         "load_more_selector": ".fetch-btn",
         "pagination_type": "loadmore",
         "max_clicks": 2
+    },
+        "latercera": {
+        "start_url":"https://www.latercera.com/",
+        "category_pattern": "canal",
+        "news_pattern": ["/noticia/"],
+        "load_more_selector": ".result-list__see-more",
+        "pagination_type": "loadmore", 
+        "max_clicks": 2
     }
 }
 ```
 
-- `start_url`: Url base del sitio de noticias a escrapear (https://www.biobiochile.cl/ para este entregable).
+- `start_url`: Url base del sitio de noticias a escrapear (https://www.biobiochile.cl/ o https://www.latercera.com/ para este sprint).
 
-- `category_pattern`: Patrón de slug de categorías (por ejemplo, lista/categorias en biobiochile.cl).
+- `category_pattern`: Patrón de slug de categorías (por ejemplo, lista/categorias en biobiochile.cl, /canal/ en latercera.cl).
 
-- `news_pattern`: Patron de slug de links de noticias de la página que se desea escrapear ("/noticias/" en biobiochile.cl).
+- `news_pattern`: Patron de slug de links de noticias de la página que se desea escrapear ("/noticias/" en biobiochile.cl, "/noticia" en latercera.cl).
 
 - `pagination_type`: Tipo de paginación de la página de categorías(`loadmore` si existe un boton javascript que carga mas noticias dinamicamente, `pagination` si existe paginación en la página).
 
-- `load_more_selector`: En caso de haber un boton javascript que carga más noticias, se necesita el classname o id de dicho boton en  (.fetch-btn en biobiochile.cl).
+- `load_more_selector`: En caso de haber un boton javascript que carga más noticias, se necesita el classname o id de dicho boton en  (.fetch-btn en biobiochile.cl, .result-list__see-more en latercera.cl).
 
 - `max_clicks`: Cantidad máxima de clicks en botones de "cargar más noticias" o número páginas a cargar en caso de paginación (2 para esta prueba).
 
 ## Funcionamiento
 * `crawler.py`: 
     - Recibe nombre de medio que se desea scrapear, configuración de cómo obtener links de noticias de este medio guardados en diccionario `SITES`.
-    - Llama a funciones en `crawler_biobio.py` para obtener los links de noticias.
+    - Llama a funciones en `crawler_loadmore.py` para obtener los links de noticias.
+    - Durante ejecución inicializa y reescribe ``metrics/crawker_progress.json` para mostrar estado en tiempo real.
     - Al final escribe `Crawler/{medio}.csv` y `metrics/crawler_metrics.json`.
 
-* `crawler_biobio.py`:
+* `crawler_loadmore.py`:
     1. `crawl_categories(config)`: 
         - Navega la home y devuelve un set de URLs de categoría.
     2. `crawl_news(config, category_list)`:
@@ -85,9 +94,11 @@ SITES = {
 - ``send_link(link, tags)``: publica JSON a la cola `scraper_queue`. Usa `pika.BlockingConnection` y `crawler_channel.basic_publish`.
 
 ## Salida / artefactos
-- CSV: `Crawler/biobiochile.csv` — filas: categoria, url
+- CSV: `Crawler/biobiochile.csv` — filas: categoria, url.
 - Métricas: `metrics/crawler_metrics.json` con:
-  - sitio, total_categorias, total_urls_encontradas, urls_por_categoria, duracion_segundos, urls_por_minuto
+  - sitio, total_categorias, total_urls_encontradas, urls_por_categoria, duracion_segundos, urls_por_minuto.
+- Métricas: `metrics/crawler_progress.json` con:
+  - sitio, status (en progreso o completado), total_categorias, categorias_procesadas, porcentaje y rusl_encontradas. 
 
 ## Timeouts y rendimiento
 - Constantes configurables (en ms):
@@ -132,11 +143,11 @@ SITES = {
 ```bash
 cd ~/ArquitecturaSoftware/media-data-collector
 source .venv/bin/activate
-python -u Crawler/crawler.py biobiochile
+python -u Crawler/crawler.py <medio>
 ```
 - Ejecutar desde scheduler (recomendado):
 ```bash
-.venv/bin/python -u RabbitMQ/scheduler.py biobiochile
+python -m scheduler.main <medio> <cantidad_de_scrapers>"
 ```
 
 ## Limitaciones conocidas
