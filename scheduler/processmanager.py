@@ -12,7 +12,7 @@ class ProcessManager:
         subprocess, según el comando provisto.
         """
         try:
-            proc = subprocess.Popen(command)
+            proc = subprocess.Popen(command, start_new_session=True)
             return proc
         except Exception as e:
             msg = f"ProcessManager no pudo lanzar el subproceso {name}. Excepción: {str(e)}"
