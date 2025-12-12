@@ -121,7 +121,9 @@ class LoggerService:
                     ).method.message_count
                     > 0
                 ):  # si el message_count no es nulo, arrojar False
+                    print(f"[Logger] La cola {queue_name} aún no está vacía.")
                     return False
+            print("[Logger] Todas las colas del Logger se han vaciado.")
             return True  # se llega aquí si ninguna cola tiene mensajes pendientes
         except Exception as e:
             print(f"[Logger] Ocurrió un error al verificar colas: {e}")
