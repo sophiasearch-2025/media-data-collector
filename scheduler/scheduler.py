@@ -1,16 +1,18 @@
 import signal
-import sys
 import time
 from datetime import datetime as dtime
 from enum import Enum, auto
 
-from scheduler.processmanager import ProcessManager
-from scheduler.scheduler_queue_utils import wait_for_scraper_queue_empty, wait_for_logging_queues_empty
 import utils.environ_var as ev
 from logger.queue_sender_generic_error import error_send
 from logger.queue_sender_logger_ctrl import logging_batch_send
-
+from scheduler.processmanager import ProcessManager
+from scheduler.scheduler_queue_utils import (
+    wait_for_logging_queues_empty,
+    wait_for_scraper_queue_empty,
+)
 from utils.config_scrapers import SCRAPER_MAP
+
 
 class SchedulerStages(Enum):
     # Fases de inicio
@@ -68,13 +70,13 @@ class Scheduler:
         Envía mensaje de error a RabbitMQ y lo imprime en consola.
         """
         try:
-            print(f"Error de Scheduler: {error_msg}")
+            print(f"[Scheduler] Error de Scheduler: {error_msg}")
             # Enviar mensaje de error al logger (por RabbitMQ)
             error_send(
                 "scheduler", dtime.now(), error_msg, self._medio, self._stage.name
             )
         except Exception as e:
-            print(f"Scheduler: Fallo crítico al intentar enviar error a RabbitMQ: {e}")
+            print(f"[Scheduler] Fallo crítico al intentar enviar error a RabbitMQ: {e}")
 
     # --- STARTERS ---
 
@@ -82,15 +84,18 @@ class Scheduler:
         self._stage = SchedulerStages.START_LOGGER
         ruta_logger = ev.get_environ_var("LOGGER")
         args = ["--id", str(self._working_batch_id)]
-        self._proc_logger = self._process_manager.launch_module(ruta_logger, "Logger", args)
+        self._proc_logger = self._process_manager.launch_module(
+            ruta_logger, "Logger", args
+        )
         time.sleep(10)
-        if send_start_batch: # solo enviar start_batch en el primer launch, no en reinicios
+        if (
+            send_start_batch
+        ):  # solo enviar start_batch en el primer launch, no en reinicios
             try:
                 logging_batch_send(self._working_batch_id, "start_batch", dtime.now())
-                print("Señal 'start_batch' enviada a RabbitMQ.")
+                print("[Scheduler] Señal 'start_batch' enviada a RabbitMQ.")
             except Exception as e:
-                print(f"Advertencia: No se pudo enviar 'start_batch': {e}")
-
+                print(f"[Scheduler] Advertencia: No se pudo enviar 'start_batch': {e}")
 
     def _start_sender(self):
         self._stage = SchedulerStages.START_SENDER
@@ -100,13 +105,15 @@ class Scheduler:
     def _start_crawler(self):
         self._stage = SchedulerStages.START_CRAWLER
         ruta_crawler = ev.get_environ_var("CRAWLER")
-        self._proc_crawler = self._process_manager.launch_script(ruta_crawler, "Crawler")
+        self._proc_crawler = self._process_manager.launch_script(
+            ruta_crawler, "Crawler"
+        )
 
     def _start_scrapers(self):
         self._stage = SchedulerStages.START_SCRAPERS
         ruta_scraper = self._get_scraper_module()
         for i in range(self._n_scrapers):
-            scraper_id = i+1
+            scraper_id = i + 1
             proc = self._process_manager.launch_module(
                 ruta_scraper, f"Scraper {scraper_id}"
             )
@@ -138,7 +145,7 @@ class Scheduler:
         los procesos correspondientes.
         ******************************************
         """
-        print(f"Scheduler está orquestando para el medio {self._medio}")
+        print(f"[Scheduler] Se está ejecutando para el medio {self._medio}")
 
         try:
             self._start_logger()
@@ -153,14 +160,16 @@ class Scheduler:
             self._stage = SchedulerStages.RUNNING_MAIN_LOOP
             while self._running:
                 # Verificar si el logger murió inesperadamente
-                if self._proc_logger and self._proc_logger.poll() is not None:
-                    print("Scheduler: ADVERTENCIA - Logger murió inesperadamente, reiniciando...")
-                    self._start_logger(send_start_batch=False)  # NO limpiar logs al reiniciar
+                # if self._proc_logger and self._proc_logger.poll() is not None:
+                #    print("Scheduler: ADVERTENCIA - Logger murió inesperadamente, reiniciando...")
+                #    self._start_logger(send_start_batch=False)  # NO limpiar logs al reiniciar
 
                 if self._proc_crawler and self._proc_crawler.poll() is not None:
                     self._stage = SchedulerStages.CRAWLING_COMPLETE
                     print("[Scheduler] Ha registrado que Crawler concluyó sus tareas")
-                    print("[Scheduler] Esperando a que scrapers terminen de procesar scraper_queue...")
+                    print(
+                        "[Scheduler] Esperando a que scrapers terminen de procesar scraper_queue..."
+                    )
                     wait_for_scraper_queue_empty(self._proc_scrapers, self._medio, self)
                     self._forceful_stop_subprocesos()
                     break
@@ -204,21 +213,22 @@ class Scheduler:
         # Señalizar el fin de logging batch
         # Señalizar al logger que debe empezar a cerrar (antes de esperar colas)
         try:
-            logging_batch_send(self._working_batch_id, "end_batch_received", dtime.now())
-            print("Scheduler: Señal 'end_batch_received' enviada al logger")
+            logging_batch_send(
+                self._working_batch_id, "end_batch_received", dtime.now()
+            )
+            print("[Scheduler] Señal 'end_batch_received' enviada al logger")
         except Exception as e:
-            print(f"Scheduler: Error enviando end_batch_received: {e}")
+            print(f"[Scheduler] Error enviando end_batch_received: {e}")
 
         # Ahora que los scrapers están muertos y logger sabe que debe cerrar,
         # esperar que las colas de logging se vacíen
-        print("Scheduler: Esperando que logger procese mensajes restantes...")
+        print("[Scheduler] Esperando que logger procese mensajes restantes...")
         wait_for_logging_queues_empty(self._proc_logger, self)
 
         # Dar tiempo al logger para cerrar gracefully antes de matarlo
         if self._proc_logger and self._proc_logger.poll() is None:
-            print("Scheduler: Esperando 10 segundos para que logger cierre solo...")
-            self._process_manager.terminate_process(self._proc_logger, "Logger", 10)
+            print("[Scheduler] Esperando 1 minuto para que logger cierre solo...")
+            self._process_manager.terminate_process(self._proc_logger, "Logger", 60)
 
         print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
-        sys.exit(0)

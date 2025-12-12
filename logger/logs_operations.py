@@ -1,6 +1,9 @@
 import json
+
 import redis
+
 import utils.redis_utils as redis_utils
+
 
 ##### Anexar un log_data a la lista list_name
 ##### Retorna True si la inserción es exitosa, False si falló
@@ -23,6 +26,7 @@ def anexar_log(log_data: dict, list_name: str):
         )
     return False
 
+
 ##### --- limpiar lista de logs, borra toda log entry ---
 ##### --- retorna True si la inserción es exitosa, False si falló ---
 def clear_logs_list(list_name: str):
@@ -40,6 +44,7 @@ def clear_logs_list(list_name: str):
         )
     return False
 
+
 ##### --- obtener todos los logs de una lista ---
 def get_logs_list(list_name: str):
     redis_client = redis_utils.get_redis_client()
@@ -49,4 +54,3 @@ def get_logs_list(list_name: str):
     except Exception as e:
         print(f"Error al leer lista {list_name} desde Redis: {e}")
     return []
-

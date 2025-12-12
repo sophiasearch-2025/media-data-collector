@@ -1,5 +1,6 @@
-import sys
 import subprocess
+import sys
+
 
 class ProcessManager:
     def __init__(self, error_callback=None):
@@ -51,11 +52,12 @@ class ProcessManager:
         si se supera el timeout de espera, kill.
         """
         if not proc or proc.poll() is not None:
-            return # proceso ya muerto
+            return  # proceso ya muerto
         try:
             print(f"[ProcessManager] Deteniendo {name}...")
             proc.terminate()
             proc.wait(timeout=timeout)
+            print(f"[ProcessManager] {name} ha finalizado su ejecución.")
         except subprocess.TimeoutExpired:
             print(f"[ProcessManager] {name} no responde. Forzando con kill...")
             proc.kill()

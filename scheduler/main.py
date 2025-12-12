@@ -1,5 +1,7 @@
 import sys
+
 from scheduler.scheduler import Scheduler
+
 
 def main():
     if len(sys.argv) != 3:
@@ -13,6 +15,9 @@ def main():
         scheduler.run()
     except KeyboardInterrupt:
         pass
+
+    sys.exit(0)
+
 
 if "__main__" == __name__:
     main()
