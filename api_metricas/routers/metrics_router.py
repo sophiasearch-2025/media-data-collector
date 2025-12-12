@@ -2,15 +2,53 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from pathlib import Path
 import json
+import os
+
+# Bloqueo de archivos multiplataforma
+if os.name == "nt":  # Windows
+    import msvcrt
+    def file_lock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+    def file_unlock(f):
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+else:  # Linux/Unix/MacOS
+    import fcntl
+    def file_lock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared lock para lectura
+    def file_unlock(f):
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 router = APIRouter(prefix="/api/metrics", tags=["Metrics"])
 
 BASE_DIR = Path(__file__).resolve().parents[2] / "metrics"
 
+def _read_json_with_lock(filepath: Path):
+    """Lee archivo JSON con file locking"""
+    if not filepath.exists():
+        return None
+    
+    max_retries = 5
+    for attempt in range(max_retries):
+        try:
+            with open(filepath, "r", encoding="utf-8") as f:
+                file_lock(f)
+                try:
+                    data = json.load(f)
+                finally:
+                    file_unlock(f)
+                return data
+        except (IOError, OSError, json.JSONDecodeError) as e:
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(0.1)
+                continue
+            raise e
+
+
 @router.get("/", summary="Obtener métricas del sistema",
             operation_id="get_metrics")
 def get_metrics():
-    """Lee las métricas desde los archivos JSON"""
+    """Lee las métricas desde los archivos JSON con file locking"""
     try:
         crawler_path = BASE_DIR / "crawler_metrics.json"
         scraper_metrics_path = BASE_DIR / "scraper_metrics.json"
@@ -19,21 +57,21 @@ def get_metrics():
 
         result = {}
 
-        if crawler_path.exists():
-            with open(crawler_path, "r", encoding="utf-8") as f:
-                result["crawler_metrics"] = json.load(f)
+        crawler_data = _read_json_with_lock(crawler_path)
+        if crawler_data:
+            result["crawler_metrics"] = crawler_data
 
-        if scraper_metrics_path.exists():
-            with open(scraper_metrics_path, "r", encoding="utf-8") as f:
-                result["scraper_metrics"] = json.load(f)
+        scraper_metrics_data = _read_json_with_lock(scraper_metrics_path)
+        if scraper_metrics_data:
+            result["scraper_metrics"] = scraper_metrics_data
 
-        if scraper_progress_path.exists():
-            with open(scraper_progress_path, "r", encoding="utf-8") as f:
-                result["scraper_progress"] = json.load(f)
+        scraper_progress_data = _read_json_with_lock(scraper_progress_path)
+        if scraper_progress_data:
+            result["scraper_progress"] = scraper_progress_data
 
-        if crawler_progress_path.exists():
-            with open(crawler_progress_path, "r", encoding="utf-8") as f:
-                result["crawler_progress"] = json.load(f)
+        crawler_progress_data = _read_json_with_lock(crawler_progress_path)
+        if crawler_progress_data:
+            result["crawler_progress"] = crawler_progress_data
 
         return result
 

@@ -210,7 +210,12 @@ def wait_for_scraper_queue_empty(proc_scrapers, medio, running_flag):
                                     scraper_progress_file, "r", encoding="utf-8"
                                 ) as f:
                                     progress = json.load(f)
-                                    urls_procesadas = progress.get("urls_procesadas", 0)
+                                    # Estructura por medio: {medio: {total_articulos_exitosos: X}}
+                                    urls_procesadas = sum(
+                                        medio_data.get("total_articulos_exitosos", 0)
+                                        for medio_data in progress.values()
+                                        if isinstance(medio_data, dict)
+                                    )
                                 print(
                                     f"Scheduler: Scrapers procesaron {urls_procesadas} URLs"
                                 )
@@ -227,8 +232,10 @@ def wait_for_scraper_queue_empty(proc_scrapers, medio, running_flag):
                                         scraper_progress_file, "r", encoding="utf-8"
                                     ) as f:
                                         progress = json.load(f)
-                                        urls_procesadas = progress.get(
-                                            "urls_procesadas", 0
+                                        urls_procesadas = sum(
+                                            medio_data.get("total_articulos_exitosos", 0)
+                                            for medio_data in progress.values()
+                                            if isinstance(medio_data, dict)
                                         )
                                     print(
                                         f"Scheduler: Scrapers ahora tienen {urls_procesadas} URLs procesadas"

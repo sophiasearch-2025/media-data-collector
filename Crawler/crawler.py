@@ -10,7 +10,7 @@ SITES = {
         "news_pattern": ["/noticias/"],                 # Slug página para reconocer links de noticias
         "load_more_selector": ".fetch-btn",             # Classname boton cargar mas links de la página
         "pagination_type": "loadmore",                  # Forma en que se cargan mas links, loadmore asume boton jscript
-        "max_clicks": 2                                 # Cantidad máxima de clikcs de este boton en la página
+        "max_clicks": 0                                 # Cantidad máxima de clikcs de este boton en la página
     },
     "latercera": {
         "start_url":"https://www.latercera.com/",
@@ -18,7 +18,7 @@ SITES = {
         "news_pattern": ["/noticia/"],                 # Slug página para reconocer links de noticias
         "load_more_selector": ".result-list__see-more",             # Classname boton cargar mas links de la página
         "pagination_type": "loadmore",                  # Forma en que se cargan mas links, loadmore asume boton jscript
-        "max_clicks": 2 
+        "max_clicks": 0
     }
 }
 
