@@ -22,7 +22,7 @@ def callback(ch, method, properties, body):
 # --- el planner consume los mensajes de su cola ---
 print("Escuchando en send_data_queue...")
 planner_channel.basic_consume(queue=SEND_DATA_QUEUE, on_message_callback=callback)
-signal_handler = StopSignalHandler(planner_channel, planner_channel, "Sender")
+signal_handler = StopSignalHandler(planner_channel, SEND_DATA_QUEUE, "Sender")
 while not signal_handler._should_stop():
     connection.process_data_events(time_limit=1)
 connection.close()
