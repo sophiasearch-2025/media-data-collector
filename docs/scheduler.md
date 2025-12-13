@@ -8,6 +8,7 @@ El Scheduler no procesa datos directamente; su función es administrar los subpr
 
 ## 2\. Ejecución
 
+<<<<<<< HEAD
 El Scheduler está diseñado para ejecutarse como un módulo de Python desde la raíz del proyecto. Así, se asegura que todas las importaciones relativas (ej. from scheduler.processmanager ...) dentro de sus componentes funcionen correctamente.
 
 ### Requisitos:
@@ -24,6 +25,8 @@ python -m scheduler.main biobiochile 2
 ```
 ## 3\. Ciclo de Vida del Proceso (Lifecycle)
 
+=======
+>>>>>>> edc95f78f7033bf531db394344fe86c29d2425d6
 El Scheduler traza las etapas de planificación con el enum `SchedulerStages`.
 
 ### Diagrama de Estados
@@ -103,7 +106,11 @@ El Scheduler se comunica con otros componentes (principalmente el Logger) a trav
       * `end_batch_received`: Indica al Logger que debe prepararse para cerrar una vez procese lo que queda de sus colas.
       * `end_batch_completed`: No se recibe en la cola de control. Es una entrada registrada directamente por el Logger en Redis cuando ya está cerrando.
 
+<<<<<<< HEAD
 ## 6\. Configuración
+=======
+## 5\. Configuración
+>>>>>>> edc95f78f7033bf531db394344fe86c29d2425d6
 
 El Scheduler depende de las siguientes variables de entorno (cargadas vía `utils.environ_var`):
 
