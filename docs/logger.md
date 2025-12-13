@@ -2,9 +2,19 @@
 
 Este módulo implementa un sistema centralizado de logging usando RabbitMQ como bróker de mensajes y Redis como sistema de almacenamiento temporal de logs. De este modo, se desacoplan los procesos de scraping/crawling/scheduling del proceso responsable de registrar logs.
 
+Adicionalmente, este módulo es responsable de consolidar y calcular las métricas finales de la ejecución (tasas de éxito, tiempos, noticias por fecha) una vez que el proceso concluye.
+
 ## Formato general de logs:
 Cada entrada log registra un atributo "id_logging_process" como identificador de la tanda de logging. 
-  * **Para los logs de `scraping_results`, `crawler_errors` y `scheduler_errors`:** este campo es adicional, es decir, es agregado como atributo por el logger después de recoger el mensaje json desde RabbitMQ y antes de anexarlo a la lista de entradas en Redis. El valor es generado al inicio del proceso logger y se mantiene constante hasta su finalización. De esta forma, todas las entradas escritas por el mismo proceso logger tendrán el mismo número identificador.
+  * **Para los logs de `scraping_results`, `crawler_errors` y `scheduler_errors`:** este campo es adicional, es decir, es agregado como atributo por el logger después de recoger el mensaje json desde RabbitMQ y antes de anexarlo a la lista de entradas en Redis. El valor es generado al inicio del proceso logger y se mantiene constante hasta su finalización.
+  
+| Redis key          | Contenido                                |
+| ------------------ | ---------------------------------------- |
+| `crawler_errors`   | Logs de errores del crawler.             |
+| `scheduler_errors` | Logs de errores del scheduler.           |
+| `scraping_results` | Resultados individuales de scraping.     |
+| `logging_control`  | Señales internas de control del proceso. |
+
 #### logs `scraping_results` en Redis
 Registran éxito/error por cada URL scrapeada.
 ```json
@@ -16,14 +26,18 @@ Registran éxito/error por cada URL scrapeada.
   "finishing_time": "YYYY-MM-DD HH:MM:SS",
   "duration_ms": "123.45",
   "error": "" | "detalle del error si lo hubo",
+  "fecha_publicacion": "Lunes 10 mayo de 2025",
   "id_logging_process": 1763159118
 }
-```
+````
+
 #### logs `crawler_errors` en Redis
+
 Registra solo errores del crawler.
+
 ```json
 {
-  "from": "crawler"
+  "from": "crawler",
   "arg_medio": "...",
   "error_timestamp": "YYYY-MM-DD HH:MM:SS",
   "stage": "etapa donde falló",
@@ -33,7 +47,9 @@ Registra solo errores del crawler.
 ```
 
 #### logs `scheduler_errors` en Redis
+
 Registra solo errores del scheduler.
+
 ```json
 {
   "from": "scheduler",
@@ -46,7 +62,9 @@ Registra solo errores del scheduler.
 ```
 
 #### logs `logging_control` en Redis
+
 Registra `start_batch` que indica el inicio de la tanda, `end_batch_received` como señalizador para terminar la tanda y `end_batch_completed` cuando la tanda se concluye y se cierran los canales desde el logger.
+
 ```json
 {
   "id_logging_process": 12345678,
@@ -55,122 +73,96 @@ Registra `start_batch` que indica el inicio de la tanda, `end_batch_received` co
 }
 ```
 
----
+-----
 
 ## Componentes .py
 
 | Componente             | Rol                                                                           |
 | ---------------------- | ----------------------------------------------------------------------------- |
-| **logger.py**          | Proceso principal que escucha mensajes desde RabbitMQ y los escribe en Redis. |
-| **logs_operations.py** | Operaciones de escritura/limpieza en Redis.                                   |
-| **queue_sender_generic_error.py**  | Módulo con funciones que envían logs de errores al proceso logger,  para los servicios crawler y scheduler.          |
-| **queue_sender_logger_ctrl.py**  | Módulo utilizado por scheduler para controlar (iniciar y señalizar término) del proceso logger. Este control también es loggeado.         |
-| **queue_sender_scraper_results.py**  | Módulo utilizado por el scraper para enviar al logger los logs de éxito/error de cada URL scrapeada.         |
-
+| **logger/main.py** | Punto de entrada. Inicializa el servicio, maneja señales de sistema y dispara el motor de métricas al cerrar. |
+| **logger/logger\_service.py** | Lógica principal del consumidor RabbitMQ. Escucha colas y escribe en Redis. |
+| **logger/metrics\_engine.py** | Procesa los logs crudos de Redis y genera el archivo final `scraper_metrics.json`. |
+| **logger/logs\_operations.py** | Operaciones de bajo nivel de escritura/lectura/limpieza en Redis.                                   |
+| **logger/queue\_sender\_generic\_error.py** | Módulo emisor para logs de errores (usado por Crawler y Scheduler).          |
+| **logger/queue\_sender\_logger\_ctrl.py** | Módulo emisor de control (usado por Scheduler). Incluye lógica de reconexión automática.         |
+| **logger/queue\_sender\_scraper\_results.py** | Módulo emisor de resultados de scraping (usado por Scrapers).         |
 
 ## Flujo de funcionamiento
 
-1. El proceso logger se inicializa con el scheduler, quien registra un log `start_batch` en `logging_control_queue` por medio de método en `queue_sender_logger_ctrl.py`.
-2. Mientras se ejecuta el sistema, un componente (crawler o scheduler) captura un error propio, o bien, el scraper scrapea una URL específica con éxito/error.
-3. Envía un mensaje al logger mediante alguno de:
-    * `queue_sender_generic_error.py`
-    * `queue_sender_scraper_results.py`
-4. RabbitMQ encola estos mensajes en su cola correspondiente.
-5. El proceso `logger.py` está consumiendo las colas:
-     * `crawler_log_queue`
-     * `scheduler_log_queue`
-     * `scraping_log_queue`
-     * `logging_control_queue`
-6. Por cada mensaje:
-     * Se asigna id_logging_process
-     * Se guarda el log en Redis mediante `logs_operations.py`
-7. Cuando se recibe la señal `end_batch_received` en `logging_control_queue`, el logger:
-     * Espera que las colas queden vacías
-     * Deja de consumir colas.
-     * Registra `end_batch_completed` en la misma cola `logging_control_queue`.
-     * Se cierra ordenadamente.
-  
+1.  El proceso logger se inicializa mediante `scheduler`, quien registra un log `start_batch` en `logging_control_queue`.
+2.  Durante la ejecución, los componentes (crawler, scheduler, scrapers) envían mensajes JSON a RabbitMQ.
+3.  El servicio `logger_service.py` consume 4 colas simultáneamente:
+      * `crawler_log_queue`
+      * `scheduler_log_queue`
+      * `scraping_log_queue`
+      * `logging_control_queue`
+4.  Por cada mensaje, se asigna el `id_logging_process` y se guarda en **Redis** mediante `logs_operations.py`.
+5.  Cuando se recibe la señal `end_batch_received`:
+      * El logger espera a que las colas se vacíen completamente.
+      * Detiene el consumo de mensajes.
+      * Registra `end_batch_completed` (en lista key `logging_control` en Redis).
+6.  **Generación de métricas:** Antes de finalizar el proceso (ya sea por flujo natural o por interrupción `SIGINT`), se invoca a `MetricsEngine`.
+7.  **Cálculo y corrección:** `MetricsEngine` lee los logs de Redis, los compara con el archivo de progreso local (`scraper_progress.json`) para corregir posibles pérdidas de datos, normaliza fechas y escribe el reporte final en `metrics/scraper_metrics.json`.
+
 ## Dependencias
 
 #### Python
 
-* `redis`
-* `pika`
-* `json`
-* `argparse`
-
-#### Módulos internos del repositorio
-
-Estos módulos, almacenados en el directorio `utils/`, son utilizados por funciones de cada componente para gestionar las conexiones a Redis y RabbitMQ.
-* `utils.rabbitmq_utils`
-* `utils.redis_utils`
+  * `redis`
+  * `pika`
+  * `json`
+  * `argparse`
 
 #### Infraestructura
 
-* **Redis** (para guardar logs)
-* **RabbitMQ** (para comunicación asíncrona)
+  * **Redis** (Persistencia temporal de logs para cálculo rápido)
+  * **RabbitMQ** (Desacople asíncrono de mensajes)
 
----
+-----
 
 ## Módulos de logging
 
-Estos módulos del proceso involucran la manipulación de las entradas logs almacenadas temporalmente en Redis, en función de lo que se consume desde las colas de RabbitMQ.
+#### Módulo `logger/main.py`
 
-#### Módulo `logger.py`
+Lanzamiento del proceso: punto de entrada de la lógica.
 
-Es el **proceso principal de logging**. Hace lo siguiente:
-* Abre conexión a RabbitMQ.
-* Declara y consume 4 colas:
-  * `crawler_log_queue`
-  * `scheduler_log_queue`
-  * `scraping_log_queue`
-  * `logging_control_queue`
-* Para cada cola existe un callback que:
-  * Parseará el JSON
-  * Insertará en Redis mediante `logs_operations.anexar_log(...)`
-  * Hará `basic_ack` (indica a RabbitMQ que el mensaje se consumió con éxito para que abandone la cola)
-* Mantiene estado interno:
-  ```python
-  state = {"terminating": False}
-  ```
-* Cuando escucha `{"action": "end_batch_received"}`:
-  * Marca `terminating = True`
-  * Espera que las colas estén vacías
-  * Llama a `stop_consuming()`
-  * Inserta `end_batch_completed` en Redis a la lista logging_control
-  * Cierra la conexión
+  * Configura manejadores de señales (`signal.SIGTERM`, `signal.SIGINT`) para asegurar que, si el contenedor o proceso es detenido, se generen las métricas finales antes de morir (`Graceful Shutdown`).
+  * Inicializa `LoggerService`.
+  * Al terminar la ejecución de `LoggerService`, llama a `MetricsEngine`.
+
+#### Módulo `logger_service.py`
+
+Contiene la lógica de negocio del consumidor:
+
+  * Mantiene la conexión RabbitMQ.
+  * Mapea colas de RabbitMQ a listas de Redis (configuradas en `QueueKeyConfig`).
+  * Gestiona el tiempo de espera (Idle Timeout) para auto-cerrarse si no hay actividad por 2 minutos tras recibir la señal de fin.
+
+#### Módulo `metrics_engine.py`
+
+Es el cerebro analítico del logger. Se ejecuta al final de la tanda.
+
+  * **Lectura:** Obtiene todos los logs crudos desde la lista `scraping_results` en Redis.
+  * **Agrupación:** Separa los logs por medio de prensa.
+  * **Corrección de datos:** Lee el archivo `metrics/scraper_progress.json` (generado en tiempo real por los scrapers mediante File Locking). Si el archivo de progreso reporta más noticias procesadas que las encontradas en Redis (posible pérdida de mensajes asíncronos), el motor prioriza los datos del archivo de progreso para garantizar la precisión de los contadores totales.
+  * **Normalización de fechas:** Parsea formatos de fecha heterogéneos (ISO 8601, texto en español como "Lunes 10...") para generar el histograma de `publicaciones_por_fecha`.
+  * **Salida:** Escribe `metrics/scraper_metrics.json`.
 
 #### Módulo `logs_operations.py`
 
-Módulo "abstraído" para realizar operaciones sobre las listas de logs en Redis.
+Abstracción de Redis.
 
-##### Funciones:
+  * `anexar_log`: `LPUSH` de JSON.
+  * `get_logs_list`: `LRANGE` para obtener todos los logs (usado por el motor de métricas).
+  * `clear_logs_list`: `DEL` para limpieza inicial.
 
-###### `anexar_log(log_data, list_name)`
-* Realiza sobre Redis:
-  ```
-  LPUSH list_name json.dumps(log_data)
-  ```
-* Maneja errores de Redis.
-
-###### `clear_logs_list(list_name)`
-* Ejecuta `DEL list_name` para limpiar listas al iniciar un batch.
-
-#### Listas en Redis:
-Para este proceso, las listas almacenadas en Redis son las siguientes:
-
-| Lista Redis        | Contenido                                |
-| ------------------ | ---------------------------------------- |
-| `crawler_errors`   | Logs de errores del crawler.             |
-| `scheduler_errors` | Logs de errores del scheduler.           |
-| `scraping_results` | Resultados individuales de scraping.     |
-| `logging_control`  | Señales internas de control del proceso. |
-
+-----
 
 ## Módulos emisores
 
-No tocan directamente a Redis y, por lo tanto, no interactúan con los logs. Usan RabbitMQ para evitar bloquearse entre ellos y para que el logger pueda escucharlos ordenadamente. Cada módulo declara su cola y publica mensajes JSON.
+Estos módulos son importados por los otros servicios (Scheduler, Crawler, Scraper) para comunicarse con el Logger.
 
+No tocan directamente a Redis y, por lo tanto, no interactúan con los logs. Usan RabbitMQ para evitar bloquearse entre ellos y para que el logger pueda escucharlos ordenadamente. Cada módulo declara su cola y publica mensajes JSON.
 
 #### Módulo `queue_sender_generic_error.py`
 Usado tanto por **crawler** como por **scheduler**. Estos componentes solo registran errores en su ejecución, de haberlos.
@@ -216,7 +208,13 @@ Emisor de resultados del scraper.
 
 #### Módulo `queue_sender_logger_ctrl.py`
 
-Se usa para coordinar la vida del proceso `logger`.
+Utilizado por el Scheduler para orquestar el inicio y fin.
+**Mejora de resiliencia:** Implementa lógica de **reintento con reconexión**. Si al intentar enviar un mensaje de control la conexión con RabbitMQ falla (`AMQPConnectionError`, `StreamLostError`), la función `logging_batch_send`:
+
+1.  Captura la excepción.
+2.  Fuerza un reseteo de la conexión mediante `rabbit.reset_connection()`.
+3.  Reintenta el envío una vez más.
+    Esto evita que el Scheduler falle en operaciones críticas si la conexión RabbitMQ se ha cerrado por inactividad (heartbeat timeout).
 
 ##### Cola:
 
@@ -259,14 +257,3 @@ Al recibir la señal de cierre, el logger:
   "timestamp": "YYYY-MM-DD HH:MM:SS"
 }
 ```
-
----
-
-## Ciclo de vida de una tanda o batch de logging
-
-1. `start_batch`. Se limpian los logs previos en Redis.
-2. Se ejecutan scheduler/crawler/scraper. Mandan logs a RabbitMQ.
-3. El logger recibe y guarda todo en Redis.
-4. Scheduler emite `end_batch_received` tras esperar el crawler. El logger espera a que llegue todo para dejar de consumir
-5. Colas vacías. El logger deja de consumir y guarda `end_batch_completed` en Redis.
-6. El logger se cierra.
