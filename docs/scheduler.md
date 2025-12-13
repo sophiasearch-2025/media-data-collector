@@ -82,8 +82,8 @@ El sistema implementa dos estrategias de cierre dependiendo del origen de la se√
 stateDiagram-v2
     [*] --> check_lock
 
-    check lock --> ABORT: Lock existe
-    check lock --> INIT: Lock adquirido
+    check_lock --> ABORT: Lock existe
+    check_lock --> INIT: Lock adquirido
 
     state ABORT {
         [*] --> [*]
@@ -132,8 +132,8 @@ stateDiagram-v2
     note right of CLOSING_LOGGER
             Espera drenado de colas de Logger
     end note
-    SHUTDOWN_COMPLETE --> release lock
-    release lock --> [*]
+    SHUTDOWN_COMPLETE --> release_lock
+    release_lock --> [*]
 ```
 
 #### Modos de detenci√≥n:
