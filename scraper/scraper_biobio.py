@@ -4,8 +4,6 @@ import sys
 import time
 from datetime import datetime as dtime
 
-from utils.stop_signal_handler import StopSignalHandler
-
 # Bloqueo de archivos
 if os.name == "nt":  # Windows
     import msvcrt
@@ -37,6 +35,7 @@ from bs4 import BeautifulSoup
 
 # Importa scraping_results_send() desde logger/
 from logger.queue_sender_scraper_results import scraping_results_send
+from utils.stop_signal_handler import StopSignalHandler
 from scraper.scraping_utils import (
     extract,
     extract_body,
@@ -189,7 +188,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                     break
 
 
-def scrap_news_article(url: str, validate: bool = False) -> dict | list:
+def scrap_news_article(url: str, validate: bool = False) -> dict | list | Exception:
     """
     Realiza el scraping completo de una noticia individual. Esta función puede devolver
     tanto un diccionario de python como una lista con los elementos de la noticia faltantes,
@@ -303,7 +302,12 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
         return e
 
 
-def consume_article(ch, method, properties, body):
+def consume_article(
+    ch: pika.channel.Channel, 
+    method: pika.spec.Basic.Deliver , 
+    properties: pika.BasicProperties, 
+    body: bytes
+):
     """
     Función llamada por RabbitMQ cada vez que le llegue un artículo extraido
     por el crawler para scrapear.

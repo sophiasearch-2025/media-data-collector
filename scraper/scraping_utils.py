@@ -126,7 +126,7 @@ def extract_image_with_description(
 ) -> list[dict]:
     '''
     Extrae las imágenes del artículo con sus descripciones y las recolecta en una lista
-    en el formato:
+    con el siguiente formato:
 
     [
         { "url": <url-imagen>, "descripcion": <descripcion-imagen> },

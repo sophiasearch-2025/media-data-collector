@@ -5,8 +5,6 @@ from datetime import datetime as dtime
 import time
 from pathlib import Path
 
-from utils.stop_signal_handler import StopSignalHandler
-
 # Bloqueo de archivos
 if os.name == "nt": # Windows
     import msvcrt
@@ -26,6 +24,14 @@ else:   # Linux/Unix/MacOS
         fcntl.flock(f.fileno(), fcntl.LOCK_UN)
 
 
+import pika
+import requests
+from bs4 import BeautifulSoup
+
+# Importa scraping_results_send() desde logger/
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+from logger.queue_sender_scraper_results import scraping_results_send
+from utils.stop_signal_handler import StopSignalHandler
 from scraper.scraping_utils import (
     extract,
     extract_body,
@@ -37,13 +43,6 @@ from scraper.scraping_utils import (
     extract_minutoaminuto_entries
 )
 
-import pika
-import requests
-from bs4 import BeautifulSoup
-
-# Importa scraping_results_send() desde logger/
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from logger.queue_sender_scraper_results import scraping_results_send
 
 SCRAPER_QUEUE = "scraper_queue"
 LOG_QUEUE = "scraping_log_queue"
@@ -174,7 +173,7 @@ def update_scraper_metrics(medio: str, status: str, duration_ms: float = 0):
                     break
 
 
-def scrap_news_article(url: str, validate: bool = False) -> dict | list:
+def scrap_news_article(url: str, validate: bool = False) -> dict | list | Exception:
     """
     Realiza el scraping completo de una noticia individual. Esta función puede devolver
     tanto un diccionario de python como una lista con los elementos de la noticia faltantes,
@@ -328,7 +327,12 @@ def scrap_news_article(url: str, validate: bool = False) -> dict | list:
         return e
 
 
-def consume_article(ch, method, properties, body):
+def consume_article(
+    ch: pika.channel.Channel, 
+    method: pika.spec.Basic.Deliver , 
+    properties: pika.BasicProperties, 
+    body: bytes
+):
     """
     Función llamada por RabbitMQ cada vez que le llegue un artículo extraido
     por el crawler para scrapear.

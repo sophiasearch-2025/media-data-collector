@@ -23,7 +23,7 @@ Enlaces a los documentos principales del subsistema:
 - [Requisitos](./requisitos.md)
 - [Despliegue](./deploy.md)
 - [Crawler](./crawler_biobio.md)
-- [Scraper](./scraper_biobio.md)
+- [Scraper](./scraper.md)
 - [RabbitMQ](../RabbitMQ/rabbit_mq.md)
 - [Logger](./logger.md)
 - [Scheduler](./scheduler.md)
