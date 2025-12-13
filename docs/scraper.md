@@ -362,9 +362,9 @@ En extract body, se desea buscar los componentes `<p>` y `<h2>`, por lo que para
 
 Un caso en particular a destacar es cuando se utiliza `div[class^='banners-contenido-nota-']`, lo cual, el uso del operador `^=` le está diciendo a `BeautifulSoup` _"Busca dentro de cualquier `<div>` cuyo classname comience con `banners-contenido-nota`"_. Esto se utiliza porque para ciertas páginas de _Biobio Chile_, el classname del componente que contiene el cuerpo de la noticia tiene un identificador único, por lo que esta sintaxis es útil para estos casos.
 
-#### `extract_multimedia()`
+#### `extract_images()`
 ```python
-extract_multimedia(soup, [
+extract_images(soup, [
     "div.post-main div.post-image img",
     "div.post-main div.post-content div.container-redes-contenido img",
     "div.imagen",
@@ -373,9 +373,10 @@ extract_multimedia(soup, [
 ])
 ```
 
-Aquí se busca únicamente imágenes puesto que en _Biobio Chile_, el único multimedia que se encuentra en la página relacionado al archivo son imágenes.
+Un ejemplo de extracción de imágenes para el medio _Biobio Chile_.
 
-Si es que el scraper devuelve una lista al llamarlo en el modo `validate`, es porque uno de los campos obligatorios _(título, fecha o cuerpo, indicado en la lista)_ está vacío. En este caso, se debe buscar en el HTML de la página el dato a scrapear, sus componentes padres, los classnames de cada uno respectivamente y añadirlo a la lista de búsqueda dentro del script.
+#### Nota:
+Si es que el scraper devuelve una lista al llamarlo en el modo `validate`, es porque uno de los campos obligatorios (indicado en la lista) está vacío. En este caso, se debe buscar en el HTML de la página el dato a scrapear, sus componentes padres, los classnames de cada uno respectivamente y añadirlo a la lista de búsqueda dentro del script.
 
 - Ejemplo
 ```python
