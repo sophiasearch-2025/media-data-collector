@@ -26,6 +26,7 @@ Enlaces a los documentos principales del subsistema:
 - [Scraper](./scraper_biobio.md)
 - [RabbitMQ](../RabbitMQ/rabbit_mq.md)
 - [Logger](./logger.md)
+- [Scheduler](./scheduler.md)
 - [API](../api_metricas/api.md)
 
 _________________________________________________________________________
