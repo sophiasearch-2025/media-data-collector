@@ -87,8 +87,6 @@ El Scheduler se comunica con otros componentes (principalmente el Logger) a trav
       * `end_batch_received`: Indica al Logger que debe prepararse para cerrar una vez procese lo que queda de sus colas.
       * `end_batch_completed`: No se recibe en la cola de control. Es una entrada registrada directamente por el Logger en Redis cuando ya está cerrando.
 
-> **Nota sobre RabbitMQ:** El Scheduler implementa lógica de reconexión automática (`reset_connection`) para evitar errores de `Heartbeat Timeout` o `EOF` durante periodos largos de inactividad mientras espera que el Crawler termine.
-
 ## 5\. Configuración
 
 El Scheduler depende de las siguientes variables de entorno (cargadas vía `utils.environ_var`):
