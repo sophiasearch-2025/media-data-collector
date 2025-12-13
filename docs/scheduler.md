@@ -6,9 +6,25 @@ El **Scheduler** es el componente orquestador del sistema `media-data-collector`
 
 El Scheduler no procesa datos directamente; su función es administrar los subprocesos y mantener la estabilidad del flujo de trabajo.
 
-## 2\. Ciclo de Vida del Proceso (Lifecycle)
+## 2\. Ejecución
 
-El Scheduler opera como una **Máquina de Estados Finitos** definida en el enum `SchedulerStages`.
+El Scheduler está diseñado para ejecutarse como un módulo de Python desde la raíz del proyecto. Así, se asegura que todas las importaciones relativas (ej. from scheduler.processmanager ...) dentro de sus componentes funcionen correctamente.
+
+### Requisitos:
+1. **RabbitMQ** y **Redis** corriendo, ambos accesibles según las variables de entorno.
+2. **Variables de entorno** explicitadas en el archivo `.env` en la raíz del repositorio.
+3. **Entorno virtual** con los paquetes de `requirements.txt` instalados, activado con `source venv/bin/activate`.
+
+```bash
+python -m scheduler.main <medio> <n_scrapers>
+```
+Ejemplo:
+```bash
+python -m scheduler.main biobiochile 2
+```
+## 3\. Ciclo de Vida del Proceso (Lifecycle)
+
+El Scheduler traza las etapas de planificación con el enum `SchedulerStages`.
 
 ### Diagrama de Estados
 
@@ -62,7 +78,7 @@ stateDiagram-v2
     SHUTDOWN_COMPLETE --> [*]
 ```
 
-## 3\. Estrategia de Gestión de Procesos
+## 4\. Estrategia de Gestión de Procesos
 
 El Scheduler utiliza la clase auxiliar `ProcessManager` para abstraer la complejidad de la librería `subprocess` de Python.
 
@@ -78,7 +94,7 @@ Existen dos modos de detener los subprocesos:
 1.  **Wait & Terminate (Happy Path):** Utilizado cuando el flujo es natural. Se envía una señal `SIGTERM`. Los subprocesos (Scraper/Sender) interceptan esta señal, terminan de procesar su cola actual RabbitMQ y se cierran por sí mismos. El Scheduler espera un `timeout` de 30 minutos para el Scraper y de 5 minutos para el Sender.
 2.  **Terminate/Kill (Forced):** Utilizado en interrupciones manuales o errores. Envía `SIGTERM` a los procesos secuencialmente. Si el proceso no responde al `SIGTERM` en diez segundos, se fuerza el cierre con `SIGKILL`.
 
-## 4\. Comunicación y Señalización
+## 5\. Comunicación y Señalización
 
 El Scheduler se comunica con otros componentes (principalmente el Logger) a través de RabbitMQ usando colas de control.
 
@@ -87,9 +103,7 @@ El Scheduler se comunica con otros componentes (principalmente el Logger) a trav
       * `end_batch_received`: Indica al Logger que debe prepararse para cerrar una vez procese lo que queda de sus colas.
       * `end_batch_completed`: No se recibe en la cola de control. Es una entrada registrada directamente por el Logger en Redis cuando ya está cerrando.
 
-> **Nota sobre RabbitMQ:** El Scheduler implementa lógica de reconexión automática (`reset_connection`) para evitar errores de `Heartbeat Timeout` o `EOF` durante periodos largos de inactividad mientras espera que el Crawler termine.
-
-## 5\. Configuración
+## 6\. Configuración
 
 El Scheduler depende de las siguientes variables de entorno (cargadas vía `utils.environ_var`):
 
@@ -103,7 +117,7 @@ El Scheduler depende de las siguientes variables de entorno (cargadas vía `util
 
 El mapeo entre el nombre del medio (como argumento de ejecución) y su variable de entorno se define en `utils.config_scrapers.SCRAPER_MAP`.
 
-## 6\. Monitoreo y Recuperación de Errores
+## 7\. Monitoreo y Recuperación de Errores
 
 El bucle principal (`run`) realiza las siguientes comprobaciones:
 
