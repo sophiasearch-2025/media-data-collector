@@ -1,46 +1,14 @@
 import signal
 import time
 from datetime import datetime as dtime
-from enum import Enum, auto
 
 import utils.environ_var as ev
 from logger.queue_sender_generic_error import error_send
 from logger.queue_sender_logger_ctrl import logging_batch_send
-from scheduler.processmanager import ProcessManager
-from scheduler.scheduler_queue_utils import (
-    wait_for_scraper_queue_empty,
-)
+from scheduler.process_manager import ProcessManager
+from scheduler.scheduler_lock import SchedulerLock
+from scheduler.scheduler_stages import SchedulerStages
 from utils.config_scrapers import SCRAPER_MAP
-
-
-class SchedulerStages(Enum):
-    # Fases de inicio
-    INIT = auto()
-    START_LOGGER = auto()
-    START_SENDER = auto()
-    START_CRAWLER = auto()
-    START_SCRAPERS = auto()
-
-    # Ejecución
-    RUNNING_MAIN_LOOP = auto()
-
-    # Finalización de las tareas
-    # para la detención natural
-    CRAWLING_COMPLETE = auto()
-    STOPPING_SCRAPERS_GRACEFUL = auto()
-    STOPPING_SENDER_GRACEFUL = auto()
-
-    # Finalización de tareas
-    # para la detención forzada-controlada
-    # (Mid-ejecución: por acción de usuario,
-    # o bien, por error del scheduler)
-    INTERRUPT_RECEIVED = auto()
-    STOPPING_CRAWLER_FORCEFUL = auto()
-    STOPPING_SCRAPERS_FORCEFUL = auto()
-    STOPPING_SENDER_FORCEFUL = auto()
-
-    CLOSING_LOGGER = auto()
-    SHUTDOWN_COMPLETE = auto()
 
 
 class Scheduler:
@@ -63,6 +31,9 @@ class Scheduler:
         self._proc_crawler = None
         self._proc_scrapers = {}
         self._end_batch_signal_sent = False
+
+        # Instanciar cerrojo
+        self._execution_lock = SchedulerLock(self._medio)
 
     def _handle_error(self, error_msg):
         """
@@ -153,6 +124,12 @@ class Scheduler:
         """
         print(f"[Scheduler] Se está ejecutando para el medio {self._medio}")
 
+        if not self._execution_lock.acquire(str(self._working_batch_id)):
+            print(
+                "[Scheduler] Abortando inicio debido a que existe recopilación activa."
+            )
+            return  # Salir si no se pudo obtener el lock
+
         try:
             self._start_logger()
             self._start_sender()
@@ -179,13 +156,16 @@ class Scheduler:
                 if self._proc_crawler and self._proc_crawler.poll() is not None:
                     self._stage = SchedulerStages.CRAWLING_COMPLETE
                     print("[Scheduler] Ha registrado que Crawler concluyó sus tareas")
-                    self._graceful_stop_subprocesos() # Secuencia de apagado ordenado
+                    self._graceful_stop_subprocesos()  # Secuencia de apagado ordenado
                     break
                 time.sleep(1)
 
         except Exception as e:
             self._handle_error(f"[Scheduler] Error crítico en Scheduler: {str(e)}")
             self._forceful_stop_subprocesos()
+
+        finally:
+            self._execution_lock.release()  # liberar el lock
 
     def _graceful_stop_subprocesos(self):
         """
@@ -197,19 +177,27 @@ class Scheduler:
         print("[Scheduler] Iniciando secuencia de apagado ordenada...")
         self._stage = SchedulerStages.STOPPING_SCRAPERS_GRACEFUL
         for scraper_id, proc in self._proc_scrapers.items():
-            print(f"[Scheduler] Señalizando a Scraper {scraper_id} (esperando a que drene su message queue)...")
-            self._process_manager.terminate_process(proc, f"Scraper {scraper_id}", timeout=1800)
+            print(
+                f"[Scheduler] Señalizando a Scraper {scraper_id} (esperando a que drene su message queue)..."
+            )
+            self._process_manager.terminate_process(
+                proc, f"Scraper {scraper_id}", timeout=1800
+            )
 
         self._stage = SchedulerStages.STOPPING_SENDER_GRACEFUL
-        print("[Scheduler] Señalizando a Sender (esperando a que drene su message queue)...")
-        self._process_manager.terminate_process(self._proc_sender, "Sender", timeout=300)
+        print(
+            "[Scheduler] Señalizando a Sender (esperando a que drene su message queue)..."
+        )
+        self._process_manager.terminate_process(
+            self._proc_sender, "Sender", timeout=300
+        )
 
         self._close_logging()
 
         print("[Scheduler] Cierre completado.")
         self._stage = SchedulerStages.SHUTDOWN_COMPLETE
 
-    def _close_logging(self): # unambiguous
+    def _close_logging(self):  # unambiguous
         """
         Detiene el proceso de logging específicamente,
         de manera "graceful" para que no se pierdan
@@ -225,7 +213,9 @@ class Scheduler:
         """
 
         self._stage = SchedulerStages.CLOSING_LOGGER
-        print("[Scheduler] Señalizando a Logger para que termine (esperando a que drene sus message queues)...")
+        print(
+            "[Scheduler] Señalizando a Logger para que termine (esperando a que drene sus message queues)..."
+        )
 
         if not self._end_batch_signal_sent:
             try:
@@ -241,7 +231,6 @@ class Scheduler:
             self._process_manager.wait_process_then_terminate(
                 self._proc_logger, "Logger", 300
             )
-
 
     def _receive_interrupt(self, signum, frame):
         """
@@ -271,7 +260,9 @@ class Scheduler:
 
         self._stage = SchedulerStages.STOPPING_SCRAPERS_FORCEFUL
         for scraper_id, proc in self._proc_scrapers.items():
-            print(f"[Scheduler] Forzando el cierre de Scraper {scraper_id} (esperando a que drene su message queue antes o que exceda el timeout de 10s)...")
+            print(
+                f"[Scheduler] Forzando el cierre de Scraper {scraper_id} (esperando a que drene su message queue antes o que exceda el timeout de 10s)..."
+            )
             self._process_manager.terminate_process(proc, f"Scraper {scraper_id}")
 
         self._stage = SchedulerStages.STOPPING_SENDER_FORCEFUL
@@ -291,7 +282,6 @@ Scheduler debería delegar la finalización a cada proceso,
 que cada subproceso se encargue de su limpieza interna y no
 responsabilizar al planificador de ese micromanagement.
 DONE (13.51)
-SORT OF??
 
 18.44
 TODO: Revisar flujo natural por ciclo de vida.
@@ -300,7 +290,7 @@ Scheduler lanza: logger, sender, crawler, scrapers.
 Una vez el crawler finalice (naturalmente, por concluido
 el crawleo), el scraper debe recibir alguna señal que le
 indique que no va a seguir recibiendo más mensajes en
-su queue consumida. En este caso, el scraper SÍ debe
+su queue a consumir. En este caso, el scraper SÍ debe
 terminar de leer todos los mensajes en su cola (sin timeout,
 porque el scraping toma tiempo).
 Una vez el scraper termine de scrapear todo, también
@@ -308,4 +298,5 @@ se debe dar una señal a sender para que termine.
 Después de todo esto, concluir el logger como se está haciendo
 hasta ahora.
 Y finalmente, cerrar el scheduler.
+DONE (20.00)
 """
