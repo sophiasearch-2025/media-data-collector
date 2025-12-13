@@ -1,7 +1,7 @@
 ## Requisitos funcionales
 
 1. Requisito 1:
-El subsistema recopila noticias de un medio de prensa.
+El subsistema recopila noticias de más de un medio de prensa.
 2. Requisito 2:
 Un script (crawler) recopila los links de las noticias que serán recopiladas.
 3. Requisito 3:
@@ -14,7 +14,8 @@ Las métricas serán almacenadas en archivos .json.
 No se puede iniciar otra recopilación mientras exista una en curso.
 7. Requisito 7:
 Se puede detener la recopilación.
-
+8. Requisito 8:
+Visualizar el estado de avance de la recopilación.
 
 ## Requisitos no funcionales
 

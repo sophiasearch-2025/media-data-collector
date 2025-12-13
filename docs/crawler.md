@@ -19,6 +19,23 @@
   - pika
 - RabbitMQ corriendo localmente (por defecto `localhost`).
 
+Para activar el entorno virtual, debe ejecutar los siguientes comandos en su terminal:
+```
+python -m venv venv
+venv/Scripts/activate
+```
+
+## Instalación
+
+Use el siguiente comando para instalar los paquetes necesarios para los scripts del proyecto:
+```
+pip install -r requirements.txt
+```
+Paquetes que se instalarán:
+[Requisitos](../requirements.txt)
+
+En la carpeta `Crawler/` se encuentra el script de recopilación de artículos de noticias y el output de este mismo en formato `csv`. En `scraper/` se encuentra el script de scraping para cada artículo de noticias que el crawler recolecte.
+
 ## Configuración
 
 - Definido en memoria (futura implementación en base de datos):

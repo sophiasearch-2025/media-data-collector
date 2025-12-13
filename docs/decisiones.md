@@ -1,7 +1,7 @@
 # Decisiones técnicas
 
 - ## Crawler:
-1. Se escogió el medio [biobiochile](https://www.biobiochile.cl) por encima de otras páginas principalmente porque no tiene una subscripcion para tente acceso a sus noticias, además que la pagina sigue una estructura constante en la formulación de sus noticias.
+1. Se escogió el medio [biobiochile](https://www.biobiochile.cl) por encima de otras páginas principalmente porque no tiene una subscripcion para tente acceso a sus noticias, además que la pagina sigue una estructura constante en la formulación de sus noticias. (Mejora: Ahora se puede recolectar de más de un medio de noticias).
 
 2. Como se escogió la forma de crawlear la pagina se decidió por la accesibilidad que presentaba la pagina mediante la cual seguía un orden y categorización en los links de las noticias, facilitando así el acceso a la busqueda masiva de noticias. Como otra opción se había propuesto buscar por niveles desde la pagina principal, esto podría considerarse como opción para otras páginas.
 
