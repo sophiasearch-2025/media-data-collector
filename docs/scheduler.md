@@ -8,7 +8,7 @@ El Scheduler no procesa datos directamente; su función es administrar los subpr
 
 ## 2\. Ciclo de Vida del Proceso (Lifecycle)
 
-El Scheduler opera como una **Máquina de Estados Finitos** definida en el enum `SchedulerStages`.
+El Scheduler traza las etapas de planificación con el enum `SchedulerStages`.
 
 ### Diagrama de Estados
 
