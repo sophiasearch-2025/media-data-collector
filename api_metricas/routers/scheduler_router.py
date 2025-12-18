@@ -116,14 +116,14 @@ async def stop_scheduler():
         if not scheduler_pid:
             raise HTTPException(status_code=400, detail="No hay crawler corriendo")
         
-        # El nuevo scheduler maneja SIGTERM/SIGINT correctamente
+        # El scheduler maneja SIGTERM/SIGINT correctamente y limpia sus propias colas
         # Enviar SIGTERM al proceso principal (scheduler)
         print(f"Enviando SIGTERM al scheduler (PID: {scheduler_pid})")
         os.kill(scheduler_pid, signal.SIGTERM)
         
         # Esperar a que termine gracefully (máximo 180 segundos - 3 minutos)
         # El scheduler puede estar esperando que colas se vacíen
-        max_wait = 180
+        max_wait = 30
         waited = 0
         while waited < max_wait:
             # Verificar si el proceso sigue corriendo
@@ -136,8 +136,8 @@ async def stop_scheduler():
                 print("Scheduler detenido correctamente")
                 break
         else:
-            # Si llegamos aquí, el proceso no se detuvo en 3 minutos
-            print("Scheduler no respondió a SIGTERM en 3 minutos, forzando con SIGKILL")
+            # Si llegamos aquí, el proceso no se detuvo en 30 segundos
+            print("Scheduler no respondió a SIGTERM en 30 segundos, forzando con SIGKILL")
             try:
                 os.kill(scheduler_pid, signal.SIGKILL)
             except ProcessLookupError:
@@ -145,36 +145,7 @@ async def stop_scheduler():
         
         scheduler_status = None
         
-        # Limpiar colas de RabbitMQ después de detener
-        try:
-            import pika
-            print("Limpiando colas de RabbitMQ...")
-            rabbit_conn = pika.BlockingConnection(pika.ConnectionParameters("localhost"))
-            rabbit_ch = rabbit_conn.channel()
-            
-            queues_to_purge = [
-                "scraper_queue",
-                "scraping_log_queue",
-                "crawler_log_queue",
-                "scheduler_log_queue",
-                "logging_control_queue",
-                "send_data_queue"
-            ]
-            
-            for queue_name in queues_to_purge:
-                try:
-                    result = rabbit_ch.queue_purge(queue=queue_name)
-                    print(f"  - {queue_name}: {result.method.message_count} mensajes eliminados")
-                except Exception as e:
-                    print(f"  - Error limpiando {queue_name}: {e}")
-            
-            rabbit_ch.close()
-            rabbit_conn.close()
-            print("Colas limpiadas correctamente")
-        except Exception as e:
-            print(f"Advertencia: No se pudieron limpiar las colas: {e}")
-        
-        return {"status": "stopped", "queues_purged": True}
+        return {"status": "stopped", "message": "Scheduler detenido correctamente"}
         
     except Exception as e:
         scheduler_status = None

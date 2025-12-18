@@ -8,9 +8,9 @@
     },
     "latercera": {
         "total_categorias": 27,
-        "total_urls_encontradas": 429,
-        "urls_por_categoria": 15.889,
-        "duracion_segundos": 213.0,
-        "urls_por_minuto": 120.85
+        "total_urls_encontradas": 438,
+        "urls_por_categoria": 16.222,
+        "duracion_segundos": 82.94,
+        "urls_por_minuto": 316.84
     }
 }

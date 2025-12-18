@@ -320,7 +320,7 @@ def wait_for_logging_queues_empty(proc_logger, running_flag):
         print("Scheduler: Verificando colas de logging (logger activo)...")
         log_queues = ["scraping_log_queue", "crawler_log_queue", "scheduler_log_queue"]
         max_wait_logs = (
-            300  # 5 minutos máximo para logs (puede haber muchos mensajes acumulados)
+            15  # 5 minutos máximo para logs (puede haber muchos mensajes acumulados)
         )
         wait_time = 0
 

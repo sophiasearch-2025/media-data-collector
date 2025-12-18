@@ -1,10 +1,18 @@
 {
   "biobiochile": {
-    "total_articulos_exitosos": 1164,
+    "total_articulos_exitosos": 303,
     "total_articulos_fallidos": 0,
-    "duracion_promedio_ms": 691.69,
-    "articulos_por_minuto": 172.71,
-    "ultima_actualizacion": "2025-12-12 15:55:19",
-    "start_time": "2025-12-12 15:48:35"
+    "duracion_promedio_ms": 604.54,
+    "articulos_por_minuto": 260.87,
+    "ultima_actualizacion": "2025-12-18 10:06:05",
+    "start_time": "2025-12-18 10:04:56"
+  },
+  "latercera": {
+    "total_articulos_exitosos": 438,
+    "total_articulos_fallidos": 0,
+    "duracion_promedio_ms": 159.21,
+    "articulos_por_minuto": 310.93,
+    "ultima_actualizacion": "2025-12-18 09:50:55",
+    "start_time": "2025-12-18 09:49:31"
   }
 }

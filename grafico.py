@@ -371,7 +371,7 @@ async def dashboard():
                 document.getElementById('stat-medio').textContent = medioNombre;
                 
                 // Iniciar scheduler con más scrapers para procesar más rápido
-                const response = await fetch('http://localhost:8000/scheduler/start', {
+                const response = await fetch('http://localhost:8080/scheduler/start', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ medio: medio, num_scrapers: 4 })
@@ -396,7 +396,7 @@ async def dashboard():
 
         async function stopScheduler() {
             try {
-                const response = await fetch('http://localhost:8000/scheduler/stop', {
+                const response = await fetch('http://localhost:8080/scheduler/stop', {
                     method: 'POST'
                 });
                 
